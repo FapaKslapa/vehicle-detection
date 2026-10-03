@@ -216,3 +216,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Project ---
+# Documentazione: solo il README è tracciato
+*.md
+!README.md
+
+# Dati, pesi, esperimenti
+data/
+runs/
+wandb/
+outputs/
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
