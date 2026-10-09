@@ -1,0 +1,26 @@
+defaults:
+  - tiling: e3
+  - postprocess: eval
+  - adaptive: default
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
+  - _self_
+
+coco_path: ???
+images_dir: ???
+manifest_path: splits/provisional.csv
+split: val
+mode: sliced
+kind: ultralytics
+weights: ???
+torchvision_name: fasterrcnn_resnet50_fpn
+device: auto
+limit: null
+out_dir: runs/predict
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  job:
+    chdir: false

@@ -1,0 +1,7 @@
+postprocess_type: GREEDYNMM
+match_metric: IOS
+match_threshold: 0.5
+perform_standard_pred: true
+confidence_threshold: 0.25
+max_detections: 1000
+containment_threshold: 0.9
