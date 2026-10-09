@@ -1,0 +1,5 @@
+slice_size: 640
+overlap_ratio: 0.2
+min_area_ratio: 0.5
+ignore_negative_samples: false
+image_extension: .png

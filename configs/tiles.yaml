@@ -1,0 +1,18 @@
+defaults:
+  - tiling: e3
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
+  - _self_
+
+coco_path: ???
+images_dir: ???
+manifest_path: splits/v1.csv
+out_dir: data/tiles
+overwrite: false
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  job:
+    chdir: false

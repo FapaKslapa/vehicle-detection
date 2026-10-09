@@ -148,3 +148,4 @@ __marimo__/
 .idea/
 .vscode/
 .DS_Store
+/splits/provisional*.csv
