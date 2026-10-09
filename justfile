@@ -47,3 +47,24 @@ data-pull: dvc-setup
 
 data-push: dvc-setup
     uv run --no-sync dvc push
+
+tiles coco images *overrides:
+    uv run --no-sync python -m vehicle_detection.data.build_tiles coco_path={{coco}} images_dir={{images}} {{overrides}}
+
+provisional-manifest coco images out="splits/provisional.csv" *flags:
+    uv run --no-sync python -m vehicle_detection.data.provisional --coco {{coco}} --images {{images}} --out {{out}} {{flags}}
+
+normalise-coco coco images out="data/processed/coco.json":
+    uv run --no-sync python -m vehicle_detection.data.normalise --coco {{coco}} --images {{images}} --out {{out}}
+
+yolo-export tiles="data/tiles" out="data/yolo" *flags:
+    uv run --no-sync python -m vehicle_detection.data.yolo_export --tiles {{tiles}} --out {{out}} {{flags}}
+
+train-tiles data *overrides:
+    uv run --no-sync python -m vehicle_detection.training.tile_train data={{data}} {{overrides}}
+
+predict coco images weights *overrides:
+    uv run --no-sync python -m vehicle_detection.inference.run coco_path={{coco}} images_dir={{images}} weights={{weights}} {{overrides}}
+
+compare coco images weights *overrides:
+    uv run --no-sync python -m vehicle_detection.experiments.compare coco_path={{coco}} images_dir={{images}} weights={{weights}} {{overrides}}
