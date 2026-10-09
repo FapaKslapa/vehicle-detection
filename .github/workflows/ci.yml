@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync
+      - run: uv sync --no-install-package torch --no-install-package torchvision
       - run: uv pip install --torch-backend=cpu torch torchvision
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
