@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from typing import Literal, TypeVar
 
@@ -50,6 +51,14 @@ class TrackingSettings(_Base):
         if value is not None and len(value.get_secret_value()) < 40:
             raise ValueError("troppo corta per una chiave W&B (attese almeno 40 caratteri)")
         return value
+
+    def export_to_environment(self) -> None:
+        os.environ["WANDB_MODE"] = self.wandb_mode
+        os.environ["WANDB_PROJECT"] = self.wandb_project
+        if self.wandb_entity:
+            os.environ["WANDB_ENTITY"] = self.wandb_entity
+        if self.wandb_api_key is not None:
+            os.environ["WANDB_API_KEY"] = self.wandb_api_key.get_secret_value()
 
     def require_online_credentials(self) -> None:
         if self.wandb_mode == "online" and self.wandb_api_key is None:

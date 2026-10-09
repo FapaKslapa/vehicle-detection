@@ -72,3 +72,36 @@ def test_tracking_rejects_unknown_mode(monkeypatch):
     monkeypatch.setenv("WANDB_MODE", "sometimes")
     with pytest.raises(ConfigError, match="WANDB_MODE"):
         load_tracking_settings()
+
+
+def test_tracking_export_sets_the_wandb_environment(monkeypatch):
+    import os
+
+    for name in ("WANDB_MODE", "WANDB_PROJECT", "WANDB_ENTITY", "WANDB_API_KEY"):
+        monkeypatch.setenv(name, "placeholder")
+    monkeypatch.delenv("WANDB_API_KEY")
+    monkeypatch.setenv("WANDB_MODE", "offline")
+    monkeypatch.setenv("WANDB_PROJECT", "demo")
+    monkeypatch.setenv("WANDB_ENTITY", "team")
+    settings = load_tracking_settings()
+    for name in ("WANDB_MODE", "WANDB_PROJECT", "WANDB_ENTITY"):
+        monkeypatch.delenv(name)
+    settings.export_to_environment()
+    assert os.environ["WANDB_MODE"] == "offline"
+    assert os.environ["WANDB_PROJECT"] == "demo"
+    assert os.environ["WANDB_ENTITY"] == "team"
+    assert "WANDB_API_KEY" not in os.environ
+    for name in ("WANDB_MODE", "WANDB_PROJECT", "WANDB_ENTITY"):
+        monkeypatch.setenv(name, os.environ[name])
+
+
+def test_tracking_export_includes_the_api_key_when_present(monkeypatch):
+    import os
+
+    monkeypatch.setenv("WANDB_API_KEY", "k" * 40)
+    monkeypatch.setenv("WANDB_MODE", "online")
+    settings = load_tracking_settings()
+    monkeypatch.delenv("WANDB_API_KEY")
+    settings.export_to_environment()
+    assert os.environ["WANDB_API_KEY"] == "k" * 40
+    monkeypatch.setenv("WANDB_API_KEY", os.environ["WANDB_API_KEY"])
