@@ -1,0 +1,5 @@
+[core]
+    remote = garage
+    analytics = false
+['remote "garage"']
+    url = s3://vehicle-detection
