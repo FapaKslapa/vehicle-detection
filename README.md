@@ -4,19 +4,39 @@ Deep learning-based vehicle detection and traffic counting from drone-captured a
 
 ## Setup
 
-Requires [uv](https://docs.astral.sh/uv/).
+Requires [uv](https://docs.astral.sh/uv/) and [just](https://just.systems/).
 
 ```bash
-uv sync
-uv pip install --torch-backend=auto torch torchvision   # picks CUDA / ROCm / XPU / CPU for this machine
-uv run pre-commit install
+just setup
 ```
 
-On macOS the default build already uses Apple MPS, so the second step is optional.
-Run later commands with `uv run --no-sync ...` to keep the backend-specific torch build.
+`just sync` runs `uv sync` and installs the PyTorch build matching the machine with `uv pip install --torch-backend`:
 
-At runtime the best available device is picked automatically
-(CUDA/ROCm > XPU > MPS > CPU), see `vehicle_detection.device`.
+| Hardware | Backend | Wheels |
+|---|---|---|
+| Apple Silicon (MPS) | none | PyPI |
+| NVIDIA, CUDA 13 driver | `cu130` | download.pytorch.org/whl/cu130 |
+| NVIDIA, older driver | `cu126` | download.pytorch.org/whl/cu126 |
+| AMD (ROCm, Linux) | `rocm7.2` | download.pytorch.org/whl/rocm7.2 |
+| Intel GPU (XPU) | `xpu` | download.pytorch.org/whl/xpu |
+| CPU only | `cpu` | download.pytorch.org/whl/cpu |
+
+Force a backend with `TORCH_BACKEND=cpu just sync`. Always run later commands with
+`uv run --no-sync` (the `just` recipes already do) so the backend is not replaced.
+At runtime the best device is picked automatically (CUDA/ROCm > XPU > MPS > CPU),
+see `vehicle_detection.device`.
+
+## Environment and data
+
+Create a `.env` with the variables read by `vehicle_detection.settings` (never commit it) and validate it:
+
+```bash
+just env-check
+just data-pull
+```
+
+Datasets live in the S3 bucket via DVC, split manifests in `splits/` are tracked by git,
+weights go to Weights & Biases Artifacts. Run `just` to list all commands.
 
 ## Workflow
 
@@ -27,8 +47,10 @@ At runtime the best available device is picked automatically
 ## Layout
 
 ```
-src/vehicle_detection/   data, training, inference, counting, evaluation, reporting
+src/vehicle_detection/   data, training, inference, counting, evaluation, reporting, settings
 configs/                 one config per experiment
+splits/                  versioned train/val/test manifests (tracked by git)
 notebooks/               EDA and analysis (outputs stripped)
+data/                    DVC-managed datasets (not in git, only .dvc pointers)
 tests/
 ```
