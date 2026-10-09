@@ -38,6 +38,37 @@ just data-pull
 Datasets live in the S3 bucket via DVC, split manifests in `splits/` are tracked by git,
 weights go to Weights & Biases Artifacts. Run `just` to list all commands.
 
+## Tiling and sliced inference
+
+Tiles are generated per split from the session manifest (`splits/v1.csv`, columns `image_id,session_id,location,split`), so every tile inherits the split of its source image and no session can appear in two splits.
+
+```bash
+just tiles path/to/instances.json path/to/images
+just tiles path/to/instances.json path/to/images tiling=e3_640 overwrite=true
+```
+
+Tiles land in `data/tiles/<split>/` together with `annotations_coco.json` and are ignored by git. Tiling parameters live in `configs/tiling/` and are validated before any work starts.
+
+Evaluation always runs on full images. `SlicedPredictor` (`vehicle_detection.inference.sliced`) tiles an image, merges the per tile detections and returns boxes in full image coordinates; `to_coco_results` exports them in the common format. `AdaptivePredictor` runs a coarse pass first and applies the sliced predictor only to the regions that contain vehicles. `measure` (`vehicle_detection.inference.benchmark`) reports seconds per image and peak CUDA memory.
+
+## Experiment workflow (E3 and E4)
+
+The real TRANSSET COCO file stores `file_name` without extension and category ids 1 to 8, so it is normalised first. Frames are shuffled crops of 4K videos, so sessions are not recoverable from file order.
+
+```bash
+just normalise-coco data/raw/transset/TRANSSET_v2/label_coco/coco.json data/raw/transset/TRANSSET_v2/images
+just provisional-manifest data/processed/coco.json data/raw/transset/TRANSSET_v2/images
+just tiles data/processed/coco.json data/raw/transset/TRANSSET_v2/images manifest_path=splits/provisional.csv tiling.image_extension=.jpg
+just yolo-export
+just train-tiles data/yolo/data.yaml weights=yolo26n.pt epochs=50 imgsz=512
+just predict data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/E3b/weights/best.pt mode=sliced split=val
+just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/E3b/weights/best.pt split=val
+```
+
+`splits/provisional.csv` groups visually similar frames into sessions and splits by group. It is a smoke-test split, ignored by git, and must be replaced by the shared `splits/v1.csv` before any number goes into the report. `vehicle_detection.experiments.metrics` computes COCO AP with the small, medium and large breakdown plus counting MAE and RMSE; it is provisional and is meant to be replaced by the shared evaluation module with the same inputs.
+
+`just compare` evaluates `full`, `sliced` and `adaptive` variants of the same weights on one split and writes `comparison.csv` and `comparison.md` with detection metrics, counting error, seconds per image and peak memory. Predictions are kept down to a confidence of 0.01 (`configs/postprocess/eval.yaml`) so that AP is computed on the full precision-recall curve, and the counting threshold grid must stay above that floor. The counting threshold is tuned on the split it is given, so tune on `val` and pass `threshold=<value>` for `test`; tuning on `test` is refused. Every run writes `run.json` or `provenance.json` with the full resolved config and the manifest hash, and reports built on a `provisional*` manifest are marked as such. Variants can override weights, mode and tiling in `configs/compare.yaml`, which is how E3b weights are compared with the baseline.
+
 ## Workflow
 
 - `main`: releases only, versioned with release-please.
