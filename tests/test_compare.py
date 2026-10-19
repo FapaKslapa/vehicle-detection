@@ -179,7 +179,7 @@ def test_run_builds_variants_from_config(dataset, tmp_path):
             ],
         )
     frame = run(cfg, model_factory=fake_factory)
-    assert list(frame["variant"]) == ["full", "sliced", "adaptive"]
+    assert list(frame["variant"]) == ["full", "sliced", "sliced-std", "adaptive"]
     assert (tmp_path / "out" / "comparison.md").is_file()
 
 
@@ -231,3 +231,25 @@ def test_provisional_split_is_flagged_in_the_markdown_report(dataset, tmp_path):
     first = (tmp_path / "report" / "comparison.md").read_text().splitlines()[0]
     assert "PROVISIONAL" in first
     assert (tmp_path / "report" / "provenance.json").is_file()
+
+
+def test_merge_tuning_config_builds_every_variant(dataset, tmp_path):
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR)):
+        cfg = compose(
+            config_name="compare_merge",
+            overrides=[
+                f"coco_path={dataset.coco_path}",
+                f"images_dir={dataset.images_dir}",
+                f"manifest_path={dataset.manifest_path}",
+                f"out_dir={tmp_path / 'out'}",
+                f"weights={tmp_path / 'w.pt'}",
+                "device=cpu",
+                "split=val",
+                "tiling.slice_size=512",
+                "limit=1",
+            ],
+        )
+    frame = run(cfg, model_factory=fake_factory)
+    names = list(frame["variant"])
+    assert len(names) == len(set(names)) == 14
+    assert "sliced-iou-30-c100" in names

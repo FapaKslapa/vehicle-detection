@@ -22,6 +22,7 @@ out_dir: runs/compare
 variants:
   - {name: full, mode: full}
   - {name: sliced, mode: sliced}
+  - {name: sliced-std, mode: sliced, postprocess: {perform_standard_pred: true}}
   - {name: adaptive, mode: adaptive}
 
 hydra:
