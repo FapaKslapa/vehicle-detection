@@ -29,10 +29,10 @@ from vehicle_detection.inference.models import (
     label_space,
 )
 from vehicle_detection.inference.sliced import PostprocessConfig, SlicedPredictor
+from vehicle_detection.messages import preview
 
 CONFIG_DIR = Path(__file__).resolve().parents[3] / "configs"
 MODES = ("full", "sliced", "adaptive")
-PREVIEW_LIMIT = 5
 PROVISIONAL_PREFIX = "provisional"
 PROVISIONAL_WARNING = "ATTENZIONE: split provvisorio, i risultati non sono validi per il report"
 
@@ -147,7 +147,7 @@ def build_predictor(
         base = sliced
     else:
         adaptive = AdaptiveConfig.model_validate(OmegaConf.to_container(cfg.adaptive, resolve=True))
-        base = AdaptivePredictor(full.predict, sliced, adaptive)
+        base = AdaptivePredictor(full.predict, sliced, adaptive, postprocess.max_detections)
     return RemappedPredictor(base, space.label_to_category)
 
 
@@ -155,6 +155,7 @@ def run(
     cfg: DictConfig, model_factory: Callable[..., Any] = build_detection_model
 ) -> PredictionRun:
     categories = load_coco(cfg.coco_path)["categories"]
+    select_split_subset(cfg.coco_path, cfg.manifest_path, cfg.split, cfg.limit)
     predictor = build_predictor(cfg, categories, model_factory)
     outcome = predict_split(
         cfg.coco_path,
@@ -164,6 +165,7 @@ def run(
         predictor,
         device=_device(cfg),
         limit=cfg.limit,
+        warmup=cfg.warmup,
     )
     write_run(outcome, cfg.out_dir, describe_run(cfg))
     return outcome
@@ -195,10 +197,7 @@ def _check_sources(images_dir: Path, images: Sequence[dict[str, Any]]) -> None:
         image["file_name"] for image in images if not (images_dir / image["file_name"]).is_file()
     )
     if missing:
-        shown = ", ".join(missing[:PREVIEW_LIMIT])
-        hidden = len(missing) - PREVIEW_LIMIT
-        suffix = f" e altri {hidden}" if hidden > 0 else ""
-        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {shown}{suffix}")
+        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {preview(missing)}")
 
 
 if __name__ == "__main__":

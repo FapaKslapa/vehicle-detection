@@ -119,3 +119,16 @@ def test_off_image_coarse_box_does_not_run_the_fine_pass():
     predictor = adaptive(lambda _: [det(-5, -5, -1, -1)], fine, padding=0)
     assert predictor.predict(image) == []
     assert fine.shapes == []
+
+
+class ManyDetections:
+    def predict(self, image):
+        return [det(i, 0, i + 5, 5) for i in range(10)]
+
+
+def test_adaptive_predictor_respects_max_detections():
+    image = render(ImageSpec("x", 1024, 1024, "train", "s", ((700, 300, 40, 40),)))
+    predictor = AdaptivePredictor(
+        bright_bbox, ManyDetections(), AdaptiveConfig(coarse_size=256), max_detections=4
+    )
+    assert len(predictor.predict(image)) == 4

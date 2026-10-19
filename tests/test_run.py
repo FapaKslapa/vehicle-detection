@@ -228,3 +228,22 @@ def test_run_writes_the_provenance_file(dataset, tmp_path):
     recorded = json.loads((tmp_path / "out" / "run.json").read_text())
     assert recorded["config"]["mode"] == "full"
     assert "manifest_sha256" in recorded
+
+
+def test_unknown_split_fails_before_the_model_is_built(dataset, tmp_path):
+    built = []
+
+    def factory(*args, **kwargs):
+        built.append(True)
+        return fake_factory(*args, **kwargs)
+
+    cfg = compose_config(dataset, tmp_path, "mode=full", "split=holdout")
+    with pytest.raises(ValueError, match="holdout"):
+        run(cfg, model_factory=factory)
+    assert not built
+
+
+def test_warmup_is_configurable_from_the_config(dataset, tmp_path):
+    cfg = compose_config(dataset, tmp_path, "mode=full", "warmup=0")
+    assert run(cfg, model_factory=fake_factory).image_count == 2
+    assert cfg.warmup == 0

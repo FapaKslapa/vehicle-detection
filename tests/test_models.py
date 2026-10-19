@@ -163,3 +163,12 @@ def test_ultralytics_adapter_loads_local_weights():
     model = build_detection_model("ultralytics", YOLO_WEIGHTS, space, 0.25, "cpu")
     detections = FullImagePredictor(model, max_detections=50).predict(square_image())
     assert all(isinstance(d, Detection) for d in detections)
+
+
+def test_empty_image_array_is_a_clear_error():
+    import numpy as np
+
+    from vehicle_detection.inference.images import as_rgb
+
+    with pytest.raises(ValueError, match="vuoto"):
+        as_rgb(np.zeros((0, 10, 3), dtype=np.uint8))

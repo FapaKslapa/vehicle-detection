@@ -16,6 +16,7 @@ weights: ???
 torchvision_name: fasterrcnn_resnet50_fpn
 device: auto
 limit: null
+warmup: 1
 out_dir: runs/predict
 
 hydra:

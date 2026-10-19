@@ -70,7 +70,9 @@ class AdaptivePredictor:
         coarse: Callable[[np.ndarray], list[Detection]],
         fine: ImagePredictor,
         config: AdaptiveConfig,
+        max_detections: int | None = None,
     ) -> None:
+        self._max_detections = max_detections
         self._coarse = coarse
         self._fine = fine
         self._config = config
@@ -88,7 +90,7 @@ class AdaptivePredictor:
             crop = image[top:bottom, left:right]
             detections.extend(d.translated(left, top) for d in self._fine.predict(crop))
         detections.sort(key=lambda detection: detection.score, reverse=True)
-        return detections
+        return detections[: self._max_detections]
 
     @staticmethod
     def _downscale(image: np.ndarray, scale: float) -> np.ndarray:

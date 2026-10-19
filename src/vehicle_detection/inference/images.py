@@ -19,6 +19,8 @@ def image_source(image: str | Path | np.ndarray) -> str | np.ndarray:
 
 
 def as_rgb(image: np.ndarray) -> np.ndarray:
+    if image.size == 0:
+        raise ValueError(f"array immagine vuoto: shape={image.shape}")
     if image.dtype != np.uint8:
         raise ValueError(_unsupported(image))
     if image.ndim == 2:
