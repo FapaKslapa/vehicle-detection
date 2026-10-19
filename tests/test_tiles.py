@@ -263,3 +263,32 @@ def test_degenerate_boxes_are_rejected_with_a_clear_error(tmp_path, bbox):
             TilingConfig(),
         )
     assert not (tmp_path / "tiles").exists()
+
+
+def test_populated_split_missing_from_the_manifest_blocks_without_overwrite(tmp_path):
+    specs = tuple(spec for spec in SPECS if spec.split != "test")
+    dataset = write_dataset(tmp_path / "data", specs)
+    out_dir = tmp_path / "tiles"
+    (out_dir / "test").mkdir(parents=True)
+    (out_dir / "test" / "old.png").write_bytes(b"x")
+    with pytest.raises(FileExistsError, match="test"):
+        build_tile_dataset(
+            dataset.coco_path, dataset.images_dir, dataset.manifest_path, out_dir, TilingConfig()
+        )
+
+
+def test_overwrite_removes_a_split_missing_from_the_manifest(tmp_path):
+    specs = tuple(spec for spec in SPECS if spec.split != "test")
+    dataset = write_dataset(tmp_path / "data", specs)
+    out_dir = tmp_path / "tiles"
+    (out_dir / "test").mkdir(parents=True)
+    (out_dir / "test" / "old.png").write_bytes(b"x")
+    build_tile_dataset(
+        dataset.coco_path,
+        dataset.images_dir,
+        dataset.manifest_path,
+        out_dir,
+        TilingConfig(),
+        overwrite=True,
+    )
+    assert not (out_dir / "test").exists()

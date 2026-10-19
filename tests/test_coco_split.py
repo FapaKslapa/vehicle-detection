@@ -81,3 +81,16 @@ def test_load_coco_missing_keys(tmp_path):
     path.write_text(json.dumps({"images": []}))
     with pytest.raises(ValueError, match="annotations"):
         load_coco(path)
+
+
+def test_duplicate_stems_in_the_coco_are_rejected():
+    coco = {
+        **COCO,
+        "images": [
+            {"id": 1, "file_name": "a/image_0001.jpg", "width": 8, "height": 8},
+            {"id": 2, "file_name": "b/image_0001.jpg", "width": 8, "height": 8},
+        ],
+        "annotations": [],
+    }
+    with pytest.raises(ManifestError, match="duplicati.*image_0001"):
+        split_coco_by_manifest(coco, manifest(("image_0001", "train")))

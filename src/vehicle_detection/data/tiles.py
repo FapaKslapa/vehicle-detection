@@ -12,8 +12,9 @@ from typing import Any
 from sahi.slicing import slice_coco
 
 from vehicle_detection.data.coco_split import load_coco, split_coco_by_manifest
-from vehicle_detection.data.manifest import ManifestError, load_manifest
+from vehicle_detection.data.manifest import VALID_SPLITS, ManifestError, load_manifest
 from vehicle_detection.data.tiling_config import TilingConfig
+from vehicle_detection.messages import preview
 
 TILE_NAME = re.compile(
     r"^(?P<stem>.+)_(?P<index>\d+)_(?P<x_min>\d+)_(?P<y_min>\d+)"
@@ -21,7 +22,6 @@ TILE_NAME = re.compile(
 )
 ANNOTATION_FILE = "annotations"
 STAGING_PREFIX = ".staging-"
-PREVIEW_LIMIT = 5
 BOX_VALUES = 4
 
 
@@ -98,7 +98,7 @@ def _check_sources(images_dir: Path, subsets: Mapping[str, Any]) -> None:
         if not (images_dir / image["file_name"]).is_file()
     )
     if missing:
-        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {_preview(missing)}")
+        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {preview(missing)}")
 
 
 def _check_boxes(subsets: Mapping[str, Any]) -> None:
@@ -111,21 +111,16 @@ def _check_boxes(subsets: Mapping[str, Any]) -> None:
         or annotation["bbox"][3] <= 0
     )
     if degenerate:
-        shown = ", ".join(f"id {i}" for i in degenerate[:PREVIEW_LIMIT])
-        hidden = len(degenerate) - PREVIEW_LIMIT
-        suffix = f" e altri {hidden}" if hidden > 0 else ""
         raise ValueError(
-            f"annotazioni con box degenerato: {shown}{suffix} (prepara il COCO con normalise-coco)"
+            f"annotazioni con box degenerato: {preview([f'id {i}' for i in degenerate])} "
+            "(prepara il COCO con normalise-coco)"
         )
 
 
-def _preview(items: list[str]) -> str:
-    shown = ", ".join(items[:PREVIEW_LIMIT])
-    hidden = len(items) - PREVIEW_LIMIT
-    return f"{shown} e altri {hidden}" if hidden > 0 else shown
-
-
 def _publish(staging: Path, out_dir: Path, reports: Mapping[str, SplitReport]) -> None:
+    for split in sorted(VALID_SPLITS - reports.keys()):
+        if (out_dir / split).is_dir():
+            shutil.rmtree(out_dir / split)
     for split in reports:
         target = out_dir / split
         if target.exists():
@@ -136,7 +131,7 @@ def _publish(staging: Path, out_dir: Path, reports: Mapping[str, SplitReport]) -
 def _check_destinations(out_dir: Path, subsets: Mapping[str, Any], overwrite: bool) -> None:
     populated = [
         out_dir / split
-        for split in sorted(subsets)
+        for split in sorted(VALID_SPLITS | subsets.keys())
         if (out_dir / split).is_dir() and any((out_dir / split).iterdir())
     ]
     if populated and not overwrite:

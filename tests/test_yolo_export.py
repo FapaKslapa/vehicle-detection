@@ -129,3 +129,31 @@ def test_cli_exports_and_prints_the_data_yaml(tmp_path, capsys):
     make_tiles(tmp_path / "tiles", "val", {"v.jpg": []}, CATEGORIES)
     main(["--tiles", str(tmp_path / "tiles"), "--out", str(tmp_path / "yolo")])
     assert str((tmp_path / "yolo" / "data.yaml").resolve()) in capsys.readouterr().out
+
+
+def test_degenerate_boxes_are_not_written_as_zero_width_labels(tmp_path):
+    make_tiles(
+        tmp_path / "tiles",
+        "train",
+        {"t.jpg": [(7, [10, 10, 0, 20]), (3, [10, 10, 20, 20])]},
+        CATEGORIES,
+    )
+    make_tiles(tmp_path / "tiles", "val", {"v.jpg": []}, CATEGORIES)
+    export_yolo(tmp_path / "tiles", tmp_path / "yolo")
+    assert len(label_lines(tmp_path / "yolo" / "labels" / "train" / "t.txt")) == 1
+
+
+def test_export_refuses_tiles_newer_than_an_existing_export_marker(tmp_path):
+    from vehicle_detection.data.yolo_export import check_export_is_current
+
+    make_tiles(tmp_path / "tiles", "train", {"t.jpg": []}, CATEGORIES)
+    make_tiles(tmp_path / "tiles", "val", {"v.jpg": []}, CATEGORIES)
+    data_yaml = export_yolo(tmp_path / "tiles", tmp_path / "yolo")
+    check_export_is_current(tmp_path / "tiles", data_yaml.parent)
+    import os
+    import time
+
+    future = time.time() + 100
+    os.utime(tmp_path / "tiles" / "train" / "annotations_coco.json", (future, future))
+    with pytest.raises(RuntimeError, match="yolo-export"):
+        check_export_is_current(tmp_path / "tiles", data_yaml.parent)

@@ -10,10 +10,10 @@ from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vehicle_detection.data.coco_split import load_coco
+from vehicle_detection.messages import preview
 
 LOCATION_COUNT = 2
 KMEANS_ITERATIONS = 25
-PREVIEW_LIMIT = 5
 
 
 class ProvisionalConfig(BaseModel):
@@ -68,10 +68,7 @@ def build_provisional_manifest(
 def _thumbnails(images_dir: Path, file_names: Sequence[str], size: int) -> np.ndarray:
     missing = sorted(name for name in file_names if not (images_dir / name).is_file())
     if missing:
-        shown = ", ".join(missing[:PREVIEW_LIMIT])
-        hidden = len(missing) - PREVIEW_LIMIT
-        suffix = f" e altri {hidden}" if hidden > 0 else ""
-        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {shown}{suffix}")
+        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {preview(missing)}")
     rows = []
     for name in file_names:
         with Image.open(images_dir / name) as image:

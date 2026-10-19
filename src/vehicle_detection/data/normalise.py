@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from vehicle_detection.data.coco_split import load_coco
+from vehicle_detection.messages import preview
 
 EXTENSIONS = (".jpg", ".jpeg", ".png")
-PREVIEW_LIMIT = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,10 +50,7 @@ def _resolve_file_names(coco: Mapping[str, Any], images_dir: Path) -> dict[int, 
             continue
         resolved[image["id"]] = existing[0]
     if missing:
-        shown = ", ".join(sorted(missing)[:PREVIEW_LIMIT])
-        hidden = len(missing) - PREVIEW_LIMIT
-        suffix = f" e altri {hidden}" if hidden > 0 else ""
-        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {shown}{suffix}")
+        raise FileNotFoundError(f"immagini non trovate in {images_dir}: {preview(sorted(missing))}")
     return resolved
 
 
@@ -61,6 +58,9 @@ def _clean_annotations(
     annotations: Sequence[Mapping[str, Any]], images: Sequence[Mapping[str, Any]]
 ) -> tuple[list[dict[str, Any]], int, int]:
     size_of = {image["id"]: (image["width"], image["height"]) for image in images}
+    orphans = sorted({a["image_id"] for a in annotations} - size_of.keys())
+    if orphans:
+        raise ValueError(f"annotazioni su immagini inesistenti: {preview(orphans)}")
     kept: list[dict[str, Any]] = []
     dropped = clipped = 0
     for annotation in annotations:

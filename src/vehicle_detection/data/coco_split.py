@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from vehicle_detection.data.manifest import ManifestError
+from vehicle_detection.messages import preview
 
 REQUIRED_KEYS = ("images", "annotations", "categories")
-PREVIEW_LIMIT = 5
 
 
 def load_coco(path: str | Path) -> dict[str, Any]:
@@ -28,13 +28,17 @@ def split_coco_by_manifest(
     coco: Mapping[str, Any], manifest: pd.DataFrame
 ) -> dict[str, dict[str, Any]]:
     split_of = dict(zip(manifest["image_id"], manifest["split"], strict=True))
-    coco_stems = {Path(image["file_name"]).stem for image in coco["images"]}
+    stems = [Path(image["file_name"]).stem for image in coco["images"]]
+    repeated = sorted({stem for stem in stems if stems.count(stem) > 1})
+    if repeated:
+        raise ManifestError(f"nomi file duplicati nel COCO: {preview(repeated)}")
+    coco_stems = set(stems)
     unlisted = sorted(coco_stems - split_of.keys())
     if unlisted:
-        raise ManifestError(f"immagini COCO assenti dal manifest: {_preview(unlisted)}")
+        raise ManifestError(f"immagini COCO assenti dal manifest: {preview(unlisted)}")
     unknown = sorted(split_of.keys() - coco_stems)
     if unknown:
-        raise ManifestError(f"immagini del manifest assenti dal COCO: {_preview(unknown)}")
+        raise ManifestError(f"immagini del manifest assenti dal COCO: {preview(unknown)}")
     subsets: dict[str, dict[str, Any]] = {}
     split_of_image_id: dict[int, str] = {}
     for image in coco["images"]:
@@ -49,9 +53,3 @@ def split_coco_by_manifest(
         if split is not None:
             subsets[split]["annotations"].append(annotation)
     return subsets
-
-
-def _preview(items: Sequence[str]) -> str:
-    shown = ", ".join(items[:PREVIEW_LIMIT])
-    hidden = len(items) - PREVIEW_LIMIT
-    return f"{shown} e altri {hidden}" if hidden > 0 else shown

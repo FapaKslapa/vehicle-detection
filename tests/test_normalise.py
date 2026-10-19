@@ -130,3 +130,12 @@ def test_valid_boxes_are_left_untouched(tmp_path):
     report = normalise_coco(path, images_dir, tmp_path / "o.json")
     assert json.loads(report.path.read_text())["annotations"] == original
     assert (report.dropped, report.clipped) == (0, 0)
+
+
+def test_annotation_on_a_missing_image_is_a_clear_error(tmp_path):
+    path, images_dir = make(tmp_path, ["a.png"], ["a.png"])
+    coco = json.loads(path.read_text())
+    coco["annotations"][0]["image_id"] = 99
+    path.write_text(json.dumps(coco))
+    with pytest.raises(ValueError, match="inesistenti.*99"):
+        normalise_coco(path, images_dir, tmp_path / "out.json")

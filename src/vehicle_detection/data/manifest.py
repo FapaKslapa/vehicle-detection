@@ -17,10 +17,17 @@ def load_manifest(path: str | Path) -> pd.DataFrame:
     if not path.is_file():
         raise ManifestError(f"manifest non trovato: {path}")
     frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if frame.empty:
+        raise ManifestError(f"manifest vuoto: {path}")
     missing = [column for column in REQUIRED_COLUMNS if column not in frame.columns]
     if missing:
         raise ManifestError(f"colonne mancanti nel manifest: {', '.join(missing)}")
     frame = frame.loc[:, list(REQUIRED_COLUMNS)]
+    padded = [
+        column for column in REQUIRED_COLUMNS if (frame[column] != frame[column].str.strip()).any()
+    ]
+    if padded:
+        raise ManifestError(f"spazi iniziali o finali nei valori, colonne: {', '.join(padded)}")
     blank = [column for column in REQUIRED_COLUMNS if (frame[column].str.strip() == "").any()]
     if blank:
         raise ManifestError(f"valori vuoti nel manifest, colonne: {', '.join(blank)}")

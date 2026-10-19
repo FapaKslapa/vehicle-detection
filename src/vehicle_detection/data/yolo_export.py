@@ -39,6 +39,24 @@ def export_yolo(
     return data_yaml
 
 
+def check_export_is_current(
+    tiles_dir: str | Path, out_dir: str | Path, splits: Sequence[str] = DEFAULT_SPLITS
+) -> None:
+    data_yaml = Path(out_dir) / "data.yaml"
+    if not data_yaml.is_file():
+        raise RuntimeError(f"export YOLO assente in {out_dir}: lancia yolo-export")
+    exported = data_yaml.stat().st_mtime
+    newer = [
+        split
+        for split in splits
+        if (Path(tiles_dir) / split / ANNOTATION_FILE).stat().st_mtime > exported
+    ]
+    if newer:
+        raise RuntimeError(
+            f"tile più recenti dell'export YOLO ({', '.join(newer)}): rilancia yolo-export"
+        )
+
+
 def _merge_categories(cocos: Mapping[str, Mapping[str, Any]]) -> dict[int, str]:
     merged: dict[int, str] = {}
     for split, coco in cocos.items():
@@ -70,13 +88,17 @@ def _write_split(
     for image in coco["images"]:
         name = image["file_name"]
         (images_out / name).symlink_to((split_dir / name).resolve())
-        lines = [_label_line(annotation, image, index_of) for annotation in by_image[image["id"]]]
+        lines = [
+            line
+            for annotation in by_image[image["id"]]
+            if (line := _label_line(annotation, image, index_of)) is not None
+        ]
         (labels_out / f"{Path(name).stem}.txt").write_text("".join(f"{line}\n" for line in lines))
 
 
 def _label_line(
     annotation: Mapping[str, Any], image: Mapping[str, Any], index_of: Mapping[int, int]
-) -> str:
+) -> str | None:
     width, height = image["width"], image["height"]
     x, y, w, h = annotation["bbox"]
     x_min, y_min = max(0.0, x), max(0.0, y)
@@ -86,6 +108,8 @@ def _label_line(
     box_w = (x_max - x_min) / width
     box_h = (y_max - y_min) / height
     index = index_of[annotation["category_id"]]
+    if box_w <= 0 or box_h <= 0:
+        return None
     return f"{index} {centre_x:.6f} {centre_y:.6f} {box_w:.6f} {box_h:.6f}"
 
 
@@ -94,7 +118,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--tiles", default="data/tiles")
     parser.add_argument("--out", default="data/yolo")
     parser.add_argument("--splits", nargs="+", default=list(DEFAULT_SPLITS))
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
+    if args.check:
+        check_export_is_current(args.tiles, args.out, args.splits)
+        return
     print(export_yolo(args.tiles, args.out, args.splits))
 
 

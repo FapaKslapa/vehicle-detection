@@ -62,3 +62,15 @@ def test_session_in_two_splits(tmp_path):
 def test_assert_disjoint_sessions_accepts_clean_frame(tmp_path):
     frame = load_manifest(write(tmp_path, "a,s1,site1,train", "b,s2,site1,val"))
     assert_disjoint_sessions(frame)
+
+
+def test_empty_manifest_has_a_clear_error(tmp_path):
+    path = write(tmp_path)
+    with pytest.raises(ManifestError, match="vuoto"):
+        load_manifest(path)
+
+
+def test_values_with_surrounding_spaces_are_named(tmp_path):
+    path = write(tmp_path, "a ,s1,site1,train")
+    with pytest.raises(ManifestError, match="spazi.*image_id"):
+        load_manifest(path)
