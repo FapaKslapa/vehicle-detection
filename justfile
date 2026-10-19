@@ -43,7 +43,7 @@ dvc-setup: env-check
     uv run --no-sync dvc remote modify --local garage secret_access_key "${AWS_SECRET_ACCESS_KEY}"
 
 data-pull: dvc-setup
-    uv run --no-sync dvc pull
+    uv run --no-sync dvc pull data/raw.dvc data/processed.dvc
 
 data-push: dvc-setup
     uv run --no-sync dvc push
@@ -61,6 +61,7 @@ yolo-export tiles="data/tiles" out="data/yolo" *flags:
     uv run --no-sync python -m vehicle_detection.data.yolo_export --tiles {{tiles}} --out {{out}} {{flags}}
 
 train-tiles data *overrides:
+    uv run --no-sync python -m vehicle_detection.data.yolo_export --check --tiles "${TILES_DIR:-data/tiles}" --out "$(dirname {{data}})"
     uv run --no-sync python -m vehicle_detection.training.tile_train data={{data}} {{overrides}}
 
 predict coco images weights *overrides:
@@ -68,3 +69,9 @@ predict coco images weights *overrides:
 
 compare coco images weights *overrides:
     uv run --no-sync python -m vehicle_detection.experiments.compare coco_path={{coco}} images_dir={{images}} weights={{weights}} {{overrides}}
+
+compare-merge coco images weights *overrides:
+    uv run --no-sync python -m vehicle_detection.experiments.compare --config-name compare_merge coco_path={{coco}} images_dir={{images}} weights={{weights}} {{overrides}}
+
+scene-split coco images out="splits/v1_candidate.csv" *flags:
+    uv run --no-sync python -m vehicle_detection.data.scene_split --coco {{coco}} --images {{images}} --out {{out}} --cache data/processed/scene_embeddings.npz {{flags}}
