@@ -1,0 +1,14 @@
+model:
+  name: "fasterrcnn_resnet50_fpn"
+  weights: "DEFAULT"
+  
+data:
+  classes:
+    - "Car"
+    - "Truck"
+    - "Bus"
+    - "Motorcycle"
+    - "Bicycle"
+    - "Van"
+    - "Trailer"
+    - "Tractor"
