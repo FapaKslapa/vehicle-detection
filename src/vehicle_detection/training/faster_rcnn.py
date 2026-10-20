@@ -12,7 +12,7 @@ def load_config(config_path=None):
         # Navigates up 3 folders to the project root, then into configs/train/
         config_path = os.path.join(current_dir, "../../../configs/train/faster_rcnn.yaml")
         
-    with open(config_path, "r") as file:
+    with open(config_path) as file:
         return yaml.safe_load(file)
 
 def setup_faster_rcnn(num_classes):
