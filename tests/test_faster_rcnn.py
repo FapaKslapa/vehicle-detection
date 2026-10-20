@@ -1,6 +1,7 @@
 
 from src.vehicle_detection.training.faster_rcnn import setup_faster_rcnn
 
+
 def test_faster_rcnn_initialization():
     # Load test config or use hardcoded number
     num_classes = 8 

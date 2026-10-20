@@ -1,8 +1,10 @@
 import os
-import yaml
+
 import torch
 import torchvision
+import yaml
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+
 
 def load_config(config_path=None):
     """Loads the Faster R-CNN configuration using dynamic absolute paths."""
