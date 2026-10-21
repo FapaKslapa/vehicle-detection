@@ -1,0 +1,25 @@
+defaults:
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
+  - _self_
+
+weights: rtdetr-l.pt
+data: ???
+
+epochs: 50
+imgsz: 512
+batch: 16
+seed: 0
+
+name: E3b-rtdetrv2-512
+fraction: 1.0
+project: runs
+device: null
+resume: null
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  job:
+    chdir: false
