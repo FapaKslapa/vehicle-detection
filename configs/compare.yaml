@@ -13,6 +13,7 @@ split: val
 kind: ultralytics
 weights: ???
 torchvision_name: fasterrcnn_resnet50_fpn
+input_size: null
 device: auto
 limit: null
 threshold: null

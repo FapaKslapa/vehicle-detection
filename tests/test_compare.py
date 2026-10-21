@@ -159,7 +159,9 @@ def test_write_report_creates_both_files(dataset, tmp_path):
     assert (tmp_path / "report" / "comparison.md").read_text().startswith("| variant |")
 
 
-def fake_factory(kind, weights, space, confidence_threshold, device, torchvision_name="x"):
+def fake_factory(
+    kind, weights, space, confidence_threshold, device, torchvision_name="x", input_size=None
+):
     return make_detector()
 
 

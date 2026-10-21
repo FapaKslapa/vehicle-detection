@@ -138,6 +138,7 @@ def build_predictor(
         postprocess.confidence_threshold,
         _device(cfg).type if cfg.device == "auto" else cfg.device,
         torchvision_name=cfg.torchvision_name,
+        input_size=cfg.input_size,
     )
     full = FullImagePredictor(model, postprocess.max_detections)
     sliced = SlicedPredictor(model, tiling, postprocess)

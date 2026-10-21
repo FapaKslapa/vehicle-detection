@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -14,6 +15,7 @@ from vehicle_detection.inference.models import (
     RemappedPredictor,
     build_detection_model,
     label_space,
+    set_input_size,
     torchvision_detection_model,
 )
 from vehicle_detection.inference.sliced import SlicedPredictor
@@ -172,3 +174,20 @@ def test_empty_image_array_is_a_clear_error():
 
     with pytest.raises(ValueError, match="vuoto"):
         as_rgb(np.zeros((0, 10, 3), dtype=np.uint8))
+
+
+def test_set_input_size_overrides_the_ultralytics_image_size():
+    model = SimpleNamespace(model=SimpleNamespace(overrides={"imgsz": 1024}))
+    set_input_size(model, 512)
+    assert model.model.overrides["imgsz"] == 512
+
+
+def test_set_input_size_none_keeps_the_checkpoint_size():
+    model = SimpleNamespace(model=SimpleNamespace(overrides={"imgsz": 1024}))
+    set_input_size(model, None)
+    assert model.model.overrides["imgsz"] == 1024
+
+
+def test_set_input_size_rejects_models_without_ultralytics_overrides():
+    with pytest.raises(ValueError, match="Ultralytics"):
+        set_input_size(SimpleNamespace(model=object()), 512)

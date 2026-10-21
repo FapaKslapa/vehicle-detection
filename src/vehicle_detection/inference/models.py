@@ -60,6 +60,7 @@ def build_detection_model(
     confidence_threshold: float,
     device: str,
     torchvision_name: str = "fasterrcnn_resnet50_fpn",
+    input_size: int | None = None,
 ) -> DetectionModel:
     if kind not in FIRST_LABEL:
         raise ValueError(
@@ -74,13 +75,24 @@ def build_detection_model(
         )
         module.load_state_dict(torch.load(weights, map_location=device, weights_only=True))
         return torchvision_detection_model(module, space, confidence_threshold, device)
-    return AutoDetectionModel.from_pretrained(
+    detection_model = AutoDetectionModel.from_pretrained(
         model_type=kind,
         model_path=str(weights),
         device=device,
         confidence_threshold=confidence_threshold,
         category_mapping=dict(space.names),
     )
+    set_input_size(detection_model, input_size)
+    return detection_model
+
+
+def set_input_size(detection_model: DetectionModel, input_size: int | None) -> None:
+    if input_size is None:
+        return
+    overrides = getattr(getattr(detection_model, "model", None), "overrides", None)
+    if overrides is None:
+        raise ValueError("input_size è supportato solo dai modelli Ultralytics")
+    overrides["imgsz"] = input_size
 
 
 class FullImagePredictor:

@@ -135,7 +135,9 @@ def compose_config(dataset, tmp_path, *overrides):
         )
 
 
-def fake_factory(kind, weights, space, confidence_threshold, device, torchvision_name="x"):
+def fake_factory(
+    kind, weights, space, confidence_threshold, device, torchvision_name="x", input_size=None
+):
     model = make_detector()
     model.confidence_threshold = confidence_threshold
     return model
@@ -162,7 +164,9 @@ def test_unknown_mode_is_rejected(dataset, tmp_path):
 def test_build_predictor_uses_coco_ids_for_each_kind(dataset, tmp_path):
     seen = {}
 
-    def factory(kind, weights, space, confidence_threshold, device, torchvision_name="x"):
+    def factory(
+        kind, weights, space, confidence_threshold, device, torchvision_name="x", input_size=None
+    ):
         seen["labels"] = dict(space.label_to_category)
         return make_detector()
 
@@ -247,3 +251,17 @@ def test_warmup_is_configurable_from_the_config(dataset, tmp_path):
     cfg = compose_config(dataset, tmp_path, "mode=full", "warmup=0")
     assert run(cfg, model_factory=fake_factory).image_count == 2
     assert cfg.warmup == 0
+
+
+def test_build_predictor_passes_the_input_size_to_the_model_factory(dataset, tmp_path):
+    seen = {}
+
+    def factory(
+        kind, weights, space, confidence_threshold, device, torchvision_name="x", input_size=None
+    ):
+        seen["input_size"] = input_size
+        return make_detector()
+
+    cfg: DictConfig = compose_config(dataset, tmp_path, "input_size=512")
+    build_predictor(cfg, [{"id": 1, "name": "car"}], factory)
+    assert seen["input_size"] == 512
