@@ -1,0 +1,14 @@
+defaults:
+  - compare
+  - _self_
+
+out_dir: runs/final_test
+
+variants:
+  - {name: E1-full-1024, mode: full, weights: data/weights/E1-control-yolo26n-1024.pt, threshold: 0.45}
+  - {name: E1-adaptive-512, mode: adaptive, input_size: 512, weights: data/weights/E1-control-yolo26n-1024.pt, threshold: 0.5}
+  - {name: E3a-prov-E1-sliced-512, mode: sliced, input_size: 512, weights: data/weights/E1-control-yolo26n-1024.pt, threshold: 0.5}
+  - {name: E3b-full-512, mode: full, weights: data/weights/E3b-yolo26n-512.pt, threshold: 0.35}
+  - {name: E3b-sliced-512, mode: sliced, weights: data/weights/E3b-yolo26n-512.pt, threshold: 0.45}
+  - {name: E3c-sliced-std-512, mode: sliced, postprocess: {perform_standard_pred: true}, weights: data/weights/E3b-yolo26n-512.pt, threshold: 0.45}
+  - {name: E3b-adaptive-512, mode: adaptive, weights: data/weights/E3b-yolo26n-512.pt, threshold: 0.4}
