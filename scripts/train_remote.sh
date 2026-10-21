@@ -13,6 +13,15 @@ export TILES_DIR="${TILES_DIR:-data/tiles}"
 tiles_dir="${TILES_DIR}"
 yolo_dir="${YOLO_DIR:-data/yolo}"
 seed="${SEED:-0}"
+device="${DEVICE:-}"
+resume="${RESUME:-}"
+extra=()
+if [ -n "${device}" ]; then
+    extra+=("device=${device}")
+fi
+if [ -n "${resume}" ] && [ -f "${resume}" ]; then
+    extra+=("resume=${resume}")
+fi
 
 for tool in uv just; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -33,7 +42,7 @@ just tiles data/processed/coco.json data/raw/transset/TRANSSET_v2/images \
     "tiling.slice_size=${slice_size}" "tiling.overlap_ratio=${overlap}" "out_dir=${tiles_dir}"
 just yolo-export "${tiles_dir}" "${yolo_dir}"
 just train-tiles "${yolo_dir}/data.yaml" \
-    "weights=${weights}" "epochs=${epochs}" "imgsz=${imgsz}" "seed=${seed}" "name=${name}"
+    "weights=${weights}" "epochs=${epochs}" "imgsz=${imgsz}" "seed=${seed}" "name=${name}" ${extra[@]+"${extra[@]}"}
 
 mkdir -p data/weights
 cp "runs/${name}/weights/best.pt" "data/weights/${name}.pt"

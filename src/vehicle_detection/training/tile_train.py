@@ -27,6 +27,8 @@ class TileTrainConfig(BaseModel):
     name: str = Field(default="E3b-yolo26n-512", min_length=1)
     fraction: float = Field(default=1.0, gt=0.0, le=1.0)
     project: Path = Path("runs")
+    device: str | None = None
+    resume: Path | None = None
 
 
 def device_argument(device_type: str) -> str:
@@ -67,10 +69,17 @@ def train(
 ) -> Path:
     if not config.data.is_file():
         raise FileNotFoundError(f"data.yaml non trovato: {config.data}")
+    if config.resume is not None and not config.resume.is_file():
+        raise FileNotFoundError(f"checkpoint non trovato: {config.resume}")
     tracking = load_tracking_settings()
     if trainer_factory is None:
         from ultralytics import YOLO as trainer_factory
     enable_tracking(tracking, config)
+    target = device or config.device or device_argument(best_device().type)
+    if config.resume is not None:
+        model = trainer_factory(str(config.resume))
+        model.train(resume=True, device=target)
+        return Path(model.trainer.save_dir) / "weights" / "best.pt"
     model = trainer_factory(config.weights)
     model.train(
         data=str(config.data),
@@ -80,7 +89,7 @@ def train(
         seed=config.seed,
         deterministic=True,
         fraction=config.fraction,
-        device=device or device_argument(best_device().type),
+        device=target,
         project=str(config.project.resolve()),
         name=config.name,
         exist_ok=False,

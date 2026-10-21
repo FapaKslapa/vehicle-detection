@@ -12,6 +12,8 @@ seed: 0
 name: E3b-yolo26n-512
 fraction: 1.0
 project: runs
+device: null
+resume: null
 
 hydra:
   output_subdir: null

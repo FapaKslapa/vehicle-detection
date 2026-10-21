@@ -26,7 +26,7 @@ class FakeModel:
 
     def train(self, **kwargs):
         self.train_kwargs = kwargs
-        save_dir = Path(kwargs["project"]) / kwargs["name"]
+        save_dir = Path(kwargs.get("project", "runs")) / kwargs.get("name", "resumed")
         self.trainer = SimpleNamespace(save_dir=save_dir)
         return None
 
@@ -79,6 +79,34 @@ def test_seed_and_deterministic_are_set(data_yaml):
     kwargs = FakeModel.instances[0].train_kwargs
     assert kwargs["seed"] == 7
     assert kwargs["deterministic"] is True
+
+
+def test_resume_reloads_the_checkpoint_and_resumes(data_yaml, tmp_path):
+    last = tmp_path / "last.pt"
+    last.write_bytes(b"x")
+    train(
+        make_config(data_yaml, resume=last),
+        trainer_factory=FakeModel,
+        device="cpu",
+        enable_tracking=noop_tracking,
+    )
+    assert FakeModel.instances[0].weights == str(last)
+    assert FakeModel.instances[0].train_kwargs["resume"] is True
+
+
+def test_resume_without_checkpoint_raises_italian_error(data_yaml, tmp_path):
+    config = make_config(data_yaml, resume=tmp_path / "missing.pt")
+    with pytest.raises(FileNotFoundError, match="checkpoint non trovato"):
+        train(config, trainer_factory=FakeModel, device="cpu", enable_tracking=noop_tracking)
+
+
+def test_device_from_config_overrides_detection(data_yaml):
+    train(
+        make_config(data_yaml, device="0,1"),
+        trainer_factory=FakeModel,
+        enable_tracking=noop_tracking,
+    )
+    assert FakeModel.instances[0].train_kwargs["device"] == "0,1"
 
 
 def test_device_argument_maps_each_backend():
