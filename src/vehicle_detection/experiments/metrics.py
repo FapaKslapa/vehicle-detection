@@ -89,23 +89,20 @@ def detection_metrics(
     )
 
 
-def match_metrics(
+def match_counts(
     gt: Mapping[str, Any],
     results: Sequence[Mapping[str, Any]],
     threshold: float,
     iou: float = MATCH_IOU,
-) -> MatchMetrics:
-    category_ids = [category["id"] for category in gt["categories"]]
+) -> dict[tuple[int, int], tuple[int, int, int]]:
     truth = _boxes_by_key(gt["annotations"])
     predicted = _boxes_by_key(result for result in results if result["score"] >= threshold)
-    true_positives = Counter[int]()
-    false_positives = Counter[int]()
-    false_negatives = Counter[int]()
+    counts: dict[tuple[int, int], tuple[int, int, int]] = {}
     for key in truth.keys() | predicted.keys():
-        category = key[1]
         boxes = [box for _, box in truth.get(key, [])]
         ranked = sorted(predicted.get(key, []), key=lambda item: -item[0])
         taken: set[int] = set()
+        false_positives = 0
         for _, box in ranked:
             best, best_iou = None, iou
             for index, candidate in enumerate(boxes):
@@ -115,11 +112,27 @@ def match_metrics(
                 if overlap >= best_iou:
                     best, best_iou = index, overlap
             if best is None:
-                false_positives[category] += 1
+                false_positives += 1
             else:
                 taken.add(best)
-                true_positives[category] += 1
-        false_negatives[category] += len(boxes) - len(taken)
+        counts[key] = (len(taken), false_positives, len(boxes) - len(taken))
+    return counts
+
+
+def match_metrics(
+    gt: Mapping[str, Any],
+    results: Sequence[Mapping[str, Any]],
+    threshold: float,
+    iou: float = MATCH_IOU,
+) -> MatchMetrics:
+    category_ids = [category["id"] for category in gt["categories"]]
+    true_positives = Counter[int]()
+    false_positives = Counter[int]()
+    false_negatives = Counter[int]()
+    for (_, category), (tp, fp, fn) in match_counts(gt, results, threshold, iou).items():
+        true_positives[category] += tp
+        false_positives[category] += fp
+        false_negatives[category] += fn
     per_class = {
         category: _precision_recall(
             true_positives[category], false_positives[category], false_negatives[category]
