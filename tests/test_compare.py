@@ -231,7 +231,7 @@ def test_provisional_split_is_flagged_in_the_markdown_report(dataset, tmp_path):
     frame = run_compare(dataset, [Variant("full", finder())])
     write_report(frame, tmp_path / "report", {"provisional": True})
     first = (tmp_path / "report" / "comparison.md").read_text().splitlines()[0]
-    assert "PROVISIONAL" in first
+    assert "PROVVISORIO" in first
     assert (tmp_path / "report" / "provenance.json").is_file()
 
 

@@ -16,6 +16,9 @@ from omegaconf import DictConfig, OmegaConf
 from vehicle_detection.data.coco_split import load_coco
 from vehicle_detection.device import best_device
 from vehicle_detection.experiments.metrics import (
+    CountingMetrics,
+    DetectionMetrics,
+    MatchMetrics,
     best_threshold,
     counting_metrics,
     detection_metrics,
@@ -24,6 +27,7 @@ from vehicle_detection.experiments.metrics import (
 from vehicle_detection.inference.adaptive import ImagePredictor
 from vehicle_detection.inference.models import build_detection_model
 from vehicle_detection.inference.run import (
+    PredictionRun,
     build_predictor,
     describe_run,
     predict_split,
@@ -57,7 +61,7 @@ COLUMNS = (
 )
 PER_CLASS_COLUMNS = ("variant", "category", "ap", "precision", "recall", "f1", "mae")
 NOT_AVAILABLE = "n/a"
-PROVISIONAL_BANNER = "PROVISIONAL SPLIT: not valid for the report"
+PROVISIONAL_BANNER = "SPLIT PROVVISORIO: non valido per il report"
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,52 +115,72 @@ def compare(
         else:
             chosen, counting = fixed, counting_metrics(truth, outcome.results, fixed)
         matching = match_metrics(truth, outcome.results, chosen)
-        for category, name in names_by_id.items():
-            pair = matching.per_class[category]
-            per_class_rows.append(
-                {
-                    "variant": variant.name,
-                    "category": name,
-                    "ap": detection.per_class_ap.get(category, math.nan),
-                    "precision": pair.precision,
-                    "recall": pair.recall,
-                    "f1": pair.f1,
-                    "mae": counting.per_class_mae[category],
-                }
-            )
+        per_class_rows.extend(
+            _per_class_rows(variant.name, names_by_id, detection, matching, counting)
+        )
         rows.append(
-            {
-                "variant": variant.name,
-                "images": outcome.image_count,
-                "detections": len(outcome.results),
-                "ap": detection.ap,
-                "ap50": detection.ap50,
-                "ap_small": detection.ap_small,
-                "ap_medium": detection.ap_medium,
-                "ap_large": detection.ap_large,
-                "ar_small": detection.ar_small,
-                "ar_medium": detection.ar_medium,
-                "ar_large": detection.ar_large,
-                "precision": matching.precision,
-                "recall": matching.recall,
-                "f1": matching.f1,
-                "threshold": chosen,
-                "threshold_source": "fixed" if fixed is not None else "tuned_on_split",
-                "mae": counting.mae,
-                "rmse": counting.rmse,
-                "seconds_per_image": outcome.costs.mean_seconds,
-                "p95_seconds": outcome.costs.p95_seconds,
-                "peak_memory_mb": (
-                    math.nan
-                    if outcome.costs.peak_memory_mb is None
-                    else outcome.costs.peak_memory_mb
-                ),
-            }
+            _variant_row(variant.name, outcome, detection, matching, counting, chosen, fixed)
         )
     frame = pd.DataFrame(rows, columns=list(COLUMNS))
     frame.attrs["per_class"] = pd.DataFrame(per_class_rows, columns=list(PER_CLASS_COLUMNS))
     frame.attrs["predictions"] = predictions
     return frame
+
+
+def _per_class_rows(
+    name: str,
+    names_by_id: Mapping[int, str],
+    detection: DetectionMetrics,
+    matching: MatchMetrics,
+    counting: CountingMetrics,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "variant": name,
+            "category": category_name,
+            "ap": detection.per_class_ap.get(category, math.nan),
+            "precision": matching.per_class[category].precision,
+            "recall": matching.per_class[category].recall,
+            "f1": matching.per_class[category].f1,
+            "mae": counting.per_class_mae[category],
+        }
+        for category, category_name in names_by_id.items()
+    ]
+
+
+def _variant_row(
+    name: str,
+    outcome: PredictionRun,
+    detection: DetectionMetrics,
+    matching: MatchMetrics,
+    counting: CountingMetrics,
+    chosen: float,
+    fixed: float | None,
+) -> dict[str, Any]:
+    peak_memory = outcome.costs.peak_memory_mb
+    return {
+        "variant": name,
+        "images": outcome.image_count,
+        "detections": len(outcome.results),
+        "ap": detection.ap,
+        "ap50": detection.ap50,
+        "ap_small": detection.ap_small,
+        "ap_medium": detection.ap_medium,
+        "ap_large": detection.ap_large,
+        "ar_small": detection.ar_small,
+        "ar_medium": detection.ar_medium,
+        "ar_large": detection.ar_large,
+        "precision": matching.precision,
+        "recall": matching.recall,
+        "f1": matching.f1,
+        "threshold": chosen,
+        "threshold_source": "fixed" if fixed is not None else "tuned_on_split",
+        "mae": counting.mae,
+        "rmse": counting.rmse,
+        "seconds_per_image": outcome.costs.mean_seconds,
+        "p95_seconds": outcome.costs.p95_seconds,
+        "peak_memory_mb": math.nan if peak_memory is None else peak_memory,
+    }
 
 
 def to_markdown(frame: pd.DataFrame) -> str:
