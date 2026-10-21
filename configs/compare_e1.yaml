@@ -1,0 +1,11 @@
+defaults:
+  - compare
+  - _self_
+
+out_dir: runs/compare_e1
+
+variants:
+  - {name: full-1024, mode: full}
+  - {name: sliced-512, mode: sliced, input_size: 512}
+  - {name: sliced-std-512, mode: sliced, input_size: 512, postprocess: {perform_standard_pred: true}}
+  - {name: adaptive-512, mode: adaptive, input_size: 512}

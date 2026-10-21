@@ -1,0 +1,12 @@
+defaults:
+  - compare
+  - _self_
+
+out_dir: runs/compare_e4
+
+variants:
+  - {name: full-1024, mode: full}
+  - {name: sliced-up2x, mode: sliced}
+  - {name: sliced-std-up2x, mode: sliced, postprocess: {perform_standard_pred: true}}
+  - {name: adaptive-up2x, mode: adaptive}
+  - {name: adaptive-up2x-pad64, mode: adaptive, adaptive: {padding: 64}}
