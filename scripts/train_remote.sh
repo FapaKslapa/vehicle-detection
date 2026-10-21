@@ -21,6 +21,8 @@ if [ -n "${device}" ]; then
 fi
 if [ -n "${resume}" ] && [ -f "${resume}" ]; then
     extra+=("resume=${resume}")
+elif [ -n "${resume}" ]; then
+    echo "RESUME ignorato, il file non esiste: ${resume}" >&2
 fi
 
 for tool in uv just; do
