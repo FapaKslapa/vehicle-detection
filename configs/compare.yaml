@@ -8,7 +8,7 @@ defaults:
 
 coco_path: ???
 images_dir: ???
-manifest_path: splits/provisional.csv
+manifest_path: splits/v1.csv
 split: val
 kind: ultralytics
 weights: ???

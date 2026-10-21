@@ -1,23 +1,8 @@
 defaults:
-  - tiling: e3
-  - postprocess: eval
-  - adaptive: default
-  - override hydra/job_logging: none
-  - override hydra/hydra_logging: none
+  - compare
   - _self_
 
-coco_path: ???
-images_dir: ???
 manifest_path: splits/v1.csv
-split: val
-kind: ultralytics
-weights: ???
-torchvision_name: fasterrcnn_resnet50_fpn
-input_size: null
-device: auto
-limit: null
-threshold: null
-thresholds: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 out_dir: runs/compare_merge
 
 variants:
@@ -35,10 +20,3 @@ variants:
   - {name: sliced-iou-70-c90, mode: sliced, postprocess: {match_metric: IOU, match_threshold: 0.7, containment_threshold: 0.9}}
   - {name: sliced-iou-70-c100, mode: sliced, postprocess: {match_metric: IOU, match_threshold: 0.7, containment_threshold: 1.0}}
   - {name: sliced-nofull, mode: sliced, postprocess: {perform_standard_pred: false}}
-
-hydra:
-  output_subdir: null
-  run:
-    dir: .
-  job:
-    chdir: false
