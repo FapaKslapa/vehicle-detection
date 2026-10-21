@@ -176,6 +176,16 @@ def test_empty_image_array_is_a_clear_error():
         as_rgb(np.zeros((0, 10, 3), dtype=np.uint8))
 
 
+def test_single_channel_array_is_expanded_to_rgb():
+    import numpy as np
+
+    from vehicle_detection.inference.images import as_rgb
+
+    rgb = as_rgb(np.full((4, 5, 1), 7, dtype=np.uint8))
+    assert rgb.shape == (4, 5, 3)
+    assert (rgb == 7).all()
+
+
 def test_set_input_size_overrides_the_ultralytics_image_size():
     model = SimpleNamespace(model=SimpleNamespace(overrides={"imgsz": 1024}))
     set_input_size(model, 512)

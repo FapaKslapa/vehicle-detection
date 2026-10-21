@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+GRAY_CHANNELS = 1
 RGB_CHANNELS = 3
 RGBA_CHANNELS = 4
 
@@ -25,6 +26,8 @@ def as_rgb(image: np.ndarray) -> np.ndarray:
         raise ValueError(_unsupported(image))
     if image.ndim == 2:
         return cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    if image.ndim == 3 and image.shape[2] == GRAY_CHANNELS:
+        return cv2.cvtColor(image[:, :, 0], cv2.COLOR_GRAY2RGB)
     if image.ndim == 3 and image.shape[2] == RGBA_CHANNELS:
         return cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
     if image.ndim == 3 and image.shape[2] == RGB_CHANNELS:
