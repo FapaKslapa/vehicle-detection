@@ -1,0 +1,21 @@
+defaults:
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
+  - _self_
+
+run_dir: ???
+coco_path: ???
+reference: ???
+manifest_path: splits/v1.csv
+split: test
+unit: image
+resamples: 1000
+seed: 0
+out_dir: runs/bootstrap
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  job:
+    chdir: false
