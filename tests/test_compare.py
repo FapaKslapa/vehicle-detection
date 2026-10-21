@@ -305,3 +305,10 @@ def test_the_test_split_is_refused_when_one_variant_lacks_a_threshold(dataset):
             "test",
             variants,
         )
+
+
+def test_write_report_saves_the_predictions_of_every_variant(dataset, tmp_path):
+    frame = run_compare(dataset, [Variant("full", finder()), Variant("sliced", finder())])
+    write_report(frame, tmp_path / "out")
+    saved = sorted(path.name for path in (tmp_path / "out" / "predictions").iterdir())
+    assert saved == ["full.json", "sliced.json"]

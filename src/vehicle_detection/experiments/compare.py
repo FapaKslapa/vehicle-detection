@@ -92,6 +92,7 @@ def compare(
     names_by_id = {category["id"]: category["name"] for category in truth["categories"]}
     rows = []
     per_class_rows = []
+    predictions: dict[str, list[dict[str, Any]]] = {}
     for variant in variants:
         outcome = predict_split(
             coco_path,
@@ -102,6 +103,7 @@ def compare(
             device=device,
             limit=limit,
         )
+        predictions[variant.name] = outcome.results
         detection = detection_metrics(truth, outcome.results)
         fixed = variant.threshold if variant.threshold is not None else threshold
         if fixed is None:
@@ -153,6 +155,7 @@ def compare(
         )
     frame = pd.DataFrame(rows, columns=list(COLUMNS))
     frame.attrs["per_class"] = pd.DataFrame(per_class_rows, columns=list(PER_CLASS_COLUMNS))
+    frame.attrs["predictions"] = predictions
     return frame
 
 
@@ -171,6 +174,12 @@ def write_report(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     frame.to_csv(out_dir / "comparison.csv", index=False)
+    predictions = frame.attrs.get("predictions")
+    if predictions:
+        predictions_dir = out_dir / "predictions"
+        predictions_dir.mkdir(exist_ok=True)
+        for name, results in predictions.items():
+            (predictions_dir / f"{name}.json").write_text(json.dumps(results))
     per_class = frame.attrs.get("per_class")
     if per_class is not None:
         per_class.to_csv(out_dir / "per_class.csv", index=False)
