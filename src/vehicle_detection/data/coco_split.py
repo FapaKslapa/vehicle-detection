@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,7 @@ def split_coco_by_manifest(
 ) -> dict[str, dict[str, Any]]:
     split_of = dict(zip(manifest["image_id"], manifest["split"], strict=True))
     stems = [Path(image["file_name"]).stem for image in coco["images"]]
-    repeated = sorted({stem for stem in stems if stems.count(stem) > 1})
+    repeated = sorted(stem for stem, occurrences in Counter(stems).items() if occurrences > 1)
     if repeated:
         raise ManifestError(f"nomi file duplicati nel COCO: {preview(repeated)}")
     coco_stems = set(stems)
