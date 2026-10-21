@@ -1,41 +1,56 @@
-import os
+from __future__ import annotations
+
+import random
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
 
 import torch
-import torchvision
-import yaml
+from omegaconf import OmegaConf
+from torch import nn
+from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
+from vehicle_detection.device import best_device
+from vehicle_detection.inference.models import FIRST_LABEL, label_space
 
-def load_config(config_path=None):
-    """Loads the Faster R-CNN configuration using dynamic absolute paths."""
-    if config_path is None:
-        # Gets the directory where this python file lives
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        # Navigates up 3 folders to the project root, then into configs/train/
-        config_path = os.path.join(current_dir, "../../../configs/train/faster_rcnn.yaml")
-        
-    with open(config_path) as file:
-        return yaml.safe_load(file)
+CONFIG_PATH = Path(__file__).resolve().parents[3] / "configs" / "train" / "faster_rcnn.yaml"
 
-def setup_faster_rcnn(num_classes):
-    """
-    Sets up the classic two-stage Faster R-CNN baseline.
-    """
-    print("--- Initializing Faster R-CNN Baseline ---")
-    # Load ResNet-50 backbone pre-trained on COCO
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights="DEFAULT")
-    
-    # Replace the classification head to fit our categories (+1 for background)
+
+def load_config(path: Path = CONFIG_PATH) -> dict[str, Any]:
+    return OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def category_labels(categories: Sequence[Mapping[str, Any]]) -> dict[int, int]:
+    space = label_space(categories, FIRST_LABEL["torchvision"])
+    return {category_id: label for label, category_id in space.label_to_category.items()}
+
+
+def save_weights(model: nn.Module, path: Path) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), path)
+    return path
+
+
+def setup_faster_rcnn(
+    num_classes: int,
+    weights: str | None = "DEFAULT",
+    weights_backbone: str | None = None,
+    device: torch.device | None = None,
+    seed: int | None = None,
+) -> nn.Module:
+    if seed is not None:
+        set_seed(seed)
+    model = fasterrcnn_resnet50_fpn(weights=weights, weights_backbone=weights_backbone)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes + 1)
-    
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    model.to(device)
-    return model
-
-if __name__ == "__main__":
-    config = load_config()
-    num_classes = len(config["data"]["classes"])
-    
-    model = setup_faster_rcnn(num_classes)
-    print(f"Faster R-CNN initialized with {num_classes} classes.")
+    return model.to(device or best_device())
