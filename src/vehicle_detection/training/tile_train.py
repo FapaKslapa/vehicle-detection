@@ -6,7 +6,7 @@ from typing import Any
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from vehicle_detection.device import best_device
 from vehicle_detection.settings import TrackingSettings, load_tracking_settings
@@ -29,6 +29,11 @@ class TileTrainConfig(BaseModel):
     project: Path = Path("runs")
     device: str | None = None
     resume: Path | None = None
+
+    @field_validator("device", mode="before")
+    @classmethod
+    def _device_as_string(cls, value: Any) -> Any:
+        return str(value) if isinstance(value, int) and not isinstance(value, bool) else value
 
 
 def device_argument(device_type: str) -> str:

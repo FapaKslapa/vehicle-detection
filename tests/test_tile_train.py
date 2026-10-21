@@ -109,6 +109,20 @@ def test_device_from_config_overrides_detection(data_yaml):
     assert FakeModel.instances[0].train_kwargs["device"] == "0,1"
 
 
+def test_hydra_integer_device_is_accepted_as_a_string(data_yaml):
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR)):
+        cfg = compose(config_name="tiles", overrides=[f"data={data_yaml}", "device=0"])
+    run(cfg, trainer_factory=FakeModel, enable_tracking=noop_tracking)
+    assert FakeModel.instances[0].train_kwargs["device"] == "0"
+
+
+def test_hydra_quoted_multi_gpu_device_is_kept_whole(data_yaml):
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR)):
+        cfg = compose(config_name="tiles", overrides=[f"data={data_yaml}", 'device="0,1"'])
+    run(cfg, trainer_factory=FakeModel, enable_tracking=noop_tracking)
+    assert FakeModel.instances[0].train_kwargs["device"] == "0,1"
+
+
 def test_device_argument_maps_each_backend():
     assert device_argument("cuda") == "0"
     assert device_argument("mps") == "mps"
