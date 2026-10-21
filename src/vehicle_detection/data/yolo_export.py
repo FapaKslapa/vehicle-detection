@@ -107,9 +107,9 @@ def _label_line(
     centre_y = (y_min + y_max) / 2 / height
     box_w = (x_max - x_min) / width
     box_h = (y_max - y_min) / height
-    index = index_of[annotation["category_id"]]
     if box_w <= 0 or box_h <= 0:
         return None
+    index = index_of[annotation["category_id"]]
     return f"{index} {centre_x:.6f} {centre_y:.6f} {box_w:.6f} {box_h:.6f}"
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import torch
@@ -17,7 +17,6 @@ from vehicle_detection.inference.adaptive import ImagePredictor
 from vehicle_detection.inference.detections import Detection, detections_from_predictions
 from vehicle_detection.inference.images import image_source
 
-ModelKind = Literal["ultralytics", "rtdetr", "torchvision"]
 FIRST_LABEL: Mapping[str, int] = {"ultralytics": 0, "rtdetr": 0, "torchvision": 1}
 
 

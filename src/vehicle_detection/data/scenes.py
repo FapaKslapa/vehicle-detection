@@ -219,7 +219,7 @@ def _try_split(
 def _merge_small(
     groups: list[np.ndarray], similarity: np.ndarray, minimum: int
 ) -> list[np.ndarray]:
-    groups = [members for members in groups]
+    groups = list(groups)
     while len(groups) > 1:
         sizes = [len(members) for members in groups]
         smallest = int(np.argmin(sizes))

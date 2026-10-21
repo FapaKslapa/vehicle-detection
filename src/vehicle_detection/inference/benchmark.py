@@ -9,9 +9,9 @@ from typing import TypeVar
 import numpy as np
 import torch
 
-T = TypeVar("T")
-R = TypeVar("R")
-S = TypeVar("S")
+_T = TypeVar("_T")
+_R = TypeVar("_R")
+_S = TypeVar("_S")
 BYTES_PER_MB = 2**20
 P95 = 95
 
@@ -25,8 +25,8 @@ class CostReport:
 
 
 def measure(
-    predict: Callable[[T], object],
-    images: Sequence[T],
+    predict: Callable[[_T], object],
+    images: Sequence[_T],
     device: torch.device,
     warmup: int = 1,
 ) -> CostReport:
@@ -35,12 +35,12 @@ def measure(
 
 
 def run_measured(
-    predict: Callable[[T], R],
-    loader: Callable[[S], T],
-    items: Sequence[S],
+    predict: Callable[[_T], _R],
+    loader: Callable[[_S], _T],
+    items: Sequence[_S],
     device: torch.device,
     warmup: int = 1,
-) -> tuple[list[R], CostReport]:
+) -> tuple[list[_R], CostReport]:
     if not items:
         raise ValueError("serve almeno un'immagine per misurare il costo")
     if warmup < 0:
@@ -49,7 +49,7 @@ def run_measured(
         predict(loader(item))
         _synchronize(device)
     _reset_peak_memory(device)
-    results: list[R] = []
+    results: list[_R] = []
     durations = []
     for item in items:
         loaded = loader(item)
@@ -66,7 +66,7 @@ def run_measured(
     return results, report
 
 
-def _identity(value: T) -> T:
+def _identity(value: _T) -> _T:
     return value
 
 
