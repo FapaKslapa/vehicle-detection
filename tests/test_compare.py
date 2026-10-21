@@ -253,3 +253,18 @@ def test_merge_tuning_config_builds_every_variant(dataset, tmp_path):
     names = list(frame["variant"])
     assert len(names) == len(set(names)) == 14
     assert "sliced-iou-30-c100" in names
+
+
+def test_precision_recall_f1_columns_are_reported(dataset):
+    frame = run_compare(dataset, [Variant("full", finder())])
+    assert frame.loc[0, "precision"] == pytest.approx(1.0)
+    assert frame.loc[0, "recall"] == pytest.approx(1.0)
+    assert frame.loc[0, "f1"] == pytest.approx(1.0)
+
+
+def test_per_class_table_has_one_row_per_variant_and_category(dataset):
+    frame = run_compare(dataset, [Variant("full", finder()), Variant("sliced", finder())])
+    per_class = frame.attrs["per_class"]
+    assert set(per_class["variant"]) == {"full", "sliced"}
+    assert {"category", "ap", "precision", "recall", "f1", "mae"} <= set(per_class.columns)
+    assert len(per_class) == 2 * per_class["category"].nunique()

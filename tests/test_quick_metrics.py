@@ -6,6 +6,7 @@ from vehicle_detection.experiments.metrics import (
     best_threshold,
     counting_metrics,
     detection_metrics,
+    match_metrics,
 )
 
 CATEGORIES = [{"id": 1, "name": "car"}, {"id": 2, "name": "truck"}]
@@ -119,3 +120,60 @@ def test_threshold_tie_prefers_lower():
 def test_best_threshold_rejects_empty_grid():
     with pytest.raises(ValueError, match="soglie"):
         best_threshold(make_gt([]), [], [])
+
+
+def test_perfect_matches_give_precision_recall_f1_one():
+    gt = make_gt([gt_box(1, 1, 1, 10, 10, 50, 50), gt_box(2, 2, 2, 100, 100, 120, 120)])
+    results = [result(1, 1, 10, 10, 50, 50), result(2, 2, 100, 100, 120, 120)]
+    metrics = match_metrics(gt, results, threshold=0.5)
+    assert metrics.precision == pytest.approx(1.0)
+    assert metrics.recall == pytest.approx(1.0)
+    assert metrics.f1 == pytest.approx(1.0)
+
+
+def test_extra_and_missing_detections_lower_precision_and_recall():
+    gt = make_gt([gt_box(1, 1, 1, 10, 10, 50, 50), gt_box(2, 1, 1, 200, 200, 50, 50)])
+    results = [result(1, 1, 10, 10, 50, 50), result(1, 1, 400, 400, 30, 30)]
+    metrics = match_metrics(gt, results, threshold=0.5)
+    assert metrics.precision == pytest.approx(0.5)
+    assert metrics.recall == pytest.approx(0.5)
+    assert metrics.f1 == pytest.approx(0.5)
+
+
+def test_wrong_class_is_not_a_match():
+    gt = make_gt([gt_box(1, 1, 1, 10, 10, 50, 50)])
+    metrics = match_metrics(gt, [result(1, 2, 10, 10, 50, 50)], threshold=0.5)
+    assert metrics.precision == 0.0
+    assert metrics.recall == 0.0
+    assert metrics.per_class[1].recall == 0.0
+    assert metrics.per_class[2].precision == 0.0
+
+
+def test_detections_below_the_threshold_are_ignored_by_the_matching():
+    gt = make_gt([gt_box(1, 1, 1, 10, 10, 50, 50)])
+    metrics = match_metrics(gt, [result(1, 1, 10, 10, 50, 50, score=0.2)], threshold=0.5)
+    assert metrics.recall == 0.0
+    assert metrics.precision == 0.0
+
+
+def test_one_ground_truth_box_is_matched_only_once():
+    gt = make_gt([gt_box(1, 1, 1, 10, 10, 50, 50)])
+    results = [result(1, 1, 10, 10, 50, 50, 0.9), result(1, 1, 11, 11, 50, 50, 0.8)]
+    metrics = match_metrics(gt, results, threshold=0.5)
+    assert metrics.precision == pytest.approx(0.5)
+    assert metrics.recall == pytest.approx(1.0)
+
+
+def test_per_class_precision_recall_are_separated():
+    gt = make_gt([gt_box(1, 1, 1, 10, 10, 50, 50), gt_box(2, 1, 2, 200, 200, 50, 50)])
+    results = [result(1, 1, 10, 10, 50, 50)]
+    metrics = match_metrics(gt, results, threshold=0.5)
+    assert metrics.per_class[1].recall == pytest.approx(1.0)
+    assert metrics.per_class[2].recall == pytest.approx(0.0)
+
+
+def test_per_class_ap_separates_a_found_class_from_a_missed_one():
+    gt = make_gt([gt_box(1, 1, 1, 10, 10, 50, 50), gt_box(2, 1, 2, 200, 200, 50, 50)])
+    metrics = detection_metrics(gt, [result(1, 1, 10, 10, 50, 50)])
+    assert metrics.per_class_ap[1] == pytest.approx(1.0)
+    assert metrics.per_class_ap[2] == pytest.approx(0.0)

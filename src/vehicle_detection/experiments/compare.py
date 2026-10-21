@@ -19,6 +19,7 @@ from vehicle_detection.experiments.metrics import (
     best_threshold,
     counting_metrics,
     detection_metrics,
+    match_metrics,
 )
 from vehicle_detection.inference.adaptive import ImagePredictor
 from vehicle_detection.inference.models import build_detection_model
@@ -43,6 +44,9 @@ COLUMNS = (
     "ar_small",
     "ar_medium",
     "ar_large",
+    "precision",
+    "recall",
+    "f1",
     "threshold",
     "threshold_source",
     "mae",
@@ -51,6 +55,7 @@ COLUMNS = (
     "p95_seconds",
     "peak_memory_mb",
 )
+PER_CLASS_COLUMNS = ("variant", "category", "ap", "precision", "recall", "f1", "mae")
 NOT_AVAILABLE = "n/a"
 PROVISIONAL_BANNER = "PROVISIONAL SPLIT: not valid for the report"
 
@@ -81,7 +86,9 @@ def compare(
     if duplicated:
         raise ValueError(f"nomi di variante duplicati: {', '.join(duplicated)}")
     truth = select_split_subset(coco_path, manifest_path, split, limit)
+    names_by_id = {category["id"]: category["name"] for category in truth["categories"]}
     rows = []
+    per_class_rows = []
     for variant in variants:
         outcome = predict_split(
             coco_path,
@@ -97,6 +104,20 @@ def compare(
             chosen, counting = best_threshold(truth, outcome.results, thresholds)
         else:
             chosen, counting = threshold, counting_metrics(truth, outcome.results, threshold)
+        matching = match_metrics(truth, outcome.results, chosen)
+        for category, name in names_by_id.items():
+            pair = matching.per_class[category]
+            per_class_rows.append(
+                {
+                    "variant": variant.name,
+                    "category": name,
+                    "ap": detection.per_class_ap.get(category, math.nan),
+                    "precision": pair.precision,
+                    "recall": pair.recall,
+                    "f1": pair.f1,
+                    "mae": counting.per_class_mae[category],
+                }
+            )
         rows.append(
             {
                 "variant": variant.name,
@@ -110,6 +131,9 @@ def compare(
                 "ar_small": detection.ar_small,
                 "ar_medium": detection.ar_medium,
                 "ar_large": detection.ar_large,
+                "precision": matching.precision,
+                "recall": matching.recall,
+                "f1": matching.f1,
                 "threshold": chosen,
                 "threshold_source": "fixed" if threshold is not None else "tuned_on_split",
                 "mae": counting.mae,
@@ -123,7 +147,9 @@ def compare(
                 ),
             }
         )
-    return pd.DataFrame(rows, columns=list(COLUMNS))
+    frame = pd.DataFrame(rows, columns=list(COLUMNS))
+    frame.attrs["per_class"] = pd.DataFrame(per_class_rows, columns=list(PER_CLASS_COLUMNS))
+    return frame
 
 
 def to_markdown(frame: pd.DataFrame) -> str:
@@ -141,6 +167,10 @@ def write_report(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     frame.to_csv(out_dir / "comparison.csv", index=False)
+    per_class = frame.attrs.get("per_class")
+    if per_class is not None:
+        per_class.to_csv(out_dir / "per_class.csv", index=False)
+        (out_dir / "per_class.md").write_text(to_markdown(per_class) + "\n")
     table = to_markdown(frame)
     if provenance is not None:
         (out_dir / "provenance.json").write_text(json.dumps(provenance, indent=2))
