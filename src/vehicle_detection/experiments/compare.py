@@ -64,6 +64,7 @@ PROVISIONAL_BANNER = "PROVISIONAL SPLIT: not valid for the report"
 class Variant:
     name: str
     predictor: ImagePredictor
+    threshold: float | None = None
 
 
 def compare(
@@ -79,7 +80,9 @@ def compare(
 ) -> pd.DataFrame:
     if not variants:
         raise ValueError("serve almeno una variante da confrontare")
-    if threshold is None and split == "test":
+    if split == "test" and any(
+        threshold is None and variant.threshold is None for variant in variants
+    ):
         raise ValueError("la soglia non va scelta sul test: passa threshold= scelto sul val")
     names = [variant.name for variant in variants]
     duplicated = sorted({name for name in names if names.count(name) > 1})
@@ -100,10 +103,11 @@ def compare(
             limit=limit,
         )
         detection = detection_metrics(truth, outcome.results)
-        if threshold is None:
+        fixed = variant.threshold if variant.threshold is not None else threshold
+        if fixed is None:
             chosen, counting = best_threshold(truth, outcome.results, thresholds)
         else:
-            chosen, counting = threshold, counting_metrics(truth, outcome.results, threshold)
+            chosen, counting = fixed, counting_metrics(truth, outcome.results, fixed)
         matching = match_metrics(truth, outcome.results, chosen)
         for category, name in names_by_id.items():
             pair = matching.per_class[category]
@@ -135,7 +139,7 @@ def compare(
                 "recall": matching.recall,
                 "f1": matching.f1,
                 "threshold": chosen,
-                "threshold_source": "fixed" if threshold is not None else "tuned_on_split",
+                "threshold_source": "fixed" if fixed is not None else "tuned_on_split",
                 "mae": counting.mae,
                 "rmse": counting.rmse,
                 "seconds_per_image": outcome.costs.mean_seconds,
@@ -187,6 +191,7 @@ def run(cfg: DictConfig, model_factory: Callable[..., Any] = build_detection_mod
         Variant(
             item.name,
             build_predictor(OmegaConf.merge(base, item), categories, model_factory),
+            item.get("threshold"),
         )
         for item in cfg.variants
     ]
@@ -216,6 +221,7 @@ def main(cfg: DictConfig) -> None:
 def _check_thresholds(cfg: DictConfig) -> None:
     floor = cfg.postprocess.confidence_threshold
     grid = [cfg.threshold] if cfg.threshold is not None else list(cfg.thresholds)
+    grid += [item.threshold for item in cfg.variants if item.get("threshold") is not None]
     below = [value for value in grid if value < floor]
     if below:
         raise ValueError(

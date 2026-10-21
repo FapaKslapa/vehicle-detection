@@ -270,3 +270,38 @@ def test_per_class_table_has_one_row_per_variant_and_category(dataset):
     assert set(per_class["variant"]) == {"full", "sliced"}
     assert {"category", "ap", "precision", "recall", "f1", "mae"} <= set(per_class.columns)
     assert len(per_class) == 2 * per_class["category"].nunique()
+
+
+def test_each_variant_can_carry_its_own_fixed_threshold(dataset):
+    noisy = Variant("noisy", Spurious(finder(), 0.3), threshold=0.5)
+    strict = Variant("strict", Spurious(finder(), 0.3), threshold=0.1)
+    frame = run_compare(dataset, [noisy, strict]).set_index("variant")
+    assert frame.loc["noisy", "threshold"] == 0.5
+    assert frame.loc["strict", "threshold"] == 0.1
+    assert frame.loc["noisy", "threshold_source"] == "fixed"
+    assert frame.loc["noisy", "mae"] == 0.0
+    assert frame.loc["strict", "mae"] == pytest.approx(1.0)
+
+
+def test_the_test_split_is_allowed_when_every_variant_has_a_threshold(dataset):
+    variants = [Variant("full", finder(), threshold=0.5)]
+    frame = compare(
+        dataset.coco_path,
+        dataset.images_dir,
+        dataset.manifest_path,
+        "test",
+        variants,
+    )
+    assert frame.loc[0, "threshold"] == 0.5
+
+
+def test_the_test_split_is_refused_when_one_variant_lacks_a_threshold(dataset):
+    variants = [Variant("a", finder(), threshold=0.5), Variant("b", finder())]
+    with pytest.raises(ValueError, match="non va scelta sul test"):
+        compare(
+            dataset.coco_path,
+            dataset.images_dir,
+            dataset.manifest_path,
+            "test",
+            variants,
+        )
