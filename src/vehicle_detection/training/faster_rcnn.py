@@ -46,7 +46,9 @@ def setup_faster_rcnn(
     weights: str | None = "DEFAULT",
     weights_backbone: str | None = None,
     device: torch.device | None = None,
-    seed: int | None = None, min_size: int | Sequence[int] = 800, max_size: int = 1333,
+    seed: int | None = None, 
+    min_size: int | Sequence[int] = 800, 
+    max_size: int = 1333,
 ) -> nn.Module:
     sizes = (min_size,) if isinstance(min_size, int) else tuple(min_size)
     if not sizes or any(type(size) is not int or size <= 0 for size in sizes):
