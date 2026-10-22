@@ -1,7 +1,8 @@
 model:
   weights: DEFAULT
   weights_backbone: null
-
+  min_size: [480, 576, 672, 768, 800]
+  max_size: 1333
 data:
   classes:
     - Car

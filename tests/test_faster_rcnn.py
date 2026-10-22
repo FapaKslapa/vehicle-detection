@@ -55,6 +55,65 @@ def test_config_exposes_the_weights_setting():
     assert config["model"]["weights"] == "DEFAULT"
     assert "weights_backbone" in config["model"]
 
+def test_training_samples_scales_and_resizes_boxes_without_mutating_targets():
+    model = build(min_size=[64, 96], max_size=256).train()
+    image = torch.rand(3, 40, 80)
+    boxes = torch.tensor([[10.0, 5.0, 30.0, 20.0]])
+    target = {"boxes": boxes.clone(), "labels": torch.tensor([1])}
+    set_seed(7)
+    seen = set()
+    for _ in range(20):
+        images, targets = model.transform([image], [target])
+        height, width = images.image_sizes[0]
+        seen.add(height)
+        assert width == height * 2
+        torch.testing.assert_close(targets[0]["boxes"], boxes * (height / 40))
+        assert torch.equal(targets[0]["labels"], target["labels"])
+    assert seen == {64, 96}
+    torch.testing.assert_close(target["boxes"], boxes)
+
+
+def test_multiscale_eval_uses_last_size_and_caps_long_edge():
+    model = build(min_size=(64, 96), max_size=128).eval()
+    for _ in range(3):
+        images, _ = model.transform([torch.rand(3, 40, 80)])
+        assert images.image_sizes == [(64, 128)]
+    images, _ = model.transform([torch.rand(3, 40, 40)])
+    assert images.image_sizes == [(96, 96)]
+
+
+def test_multiscale_sampling_is_repeatable_with_seed():
+    model = build(min_size=(64, 96), max_size=256).train()
+    image = torch.rand(3, 40, 80)
+
+    def draw():
+        set_seed(11)
+        return [model.transform([image])[0].image_sizes[0] for _ in range(10)]
+
+    assert draw() == draw()
+
+
+def test_single_scale_remains_supported():
+    model = build(min_size=64, max_size=128)
+    assert model.transform.min_size == (64,)
+
+
+@pytest.mark.parametrize(
+    ("min_size", "max_size"),
+    [
+        ([], 128),
+        ([0, 64], 128),
+        ([-1], 128),
+        ([64.5], 128),
+        ([True], 128),
+        ([64], 32),
+        ([64], 128.5),
+    ],
+)
+def test_invalid_resize_settings_are_rejected(min_size, max_size):
+    with pytest.raises(ValueError):
+        build(min_size=min_size, max_size=max_size)
+
 
 CATEGORIES = [{"id": 1, "name": "car"}, {"id": 2, "name": "hatchback"}, {"id": 5, "name": "suv"}]
 

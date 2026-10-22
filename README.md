@@ -69,6 +69,35 @@ just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/
 
 `just compare` evaluates `full`, `sliced` and `adaptive` variants of the same weights on one split and writes `comparison.csv` and `comparison.md` with detection metrics, counting error, seconds per image and peak memory. Predictions are kept down to a confidence of 0.01 (`configs/postprocess/eval.yaml`) so that AP is computed on the full precision-recall curve, and the counting threshold grid must stay above that floor. The counting threshold is tuned on the split it is given, so tune on `val` and pass `threshold=<value>` for `test`; tuning on `test` is refused. Every run writes `run.json` or `provenance.json` with the full resolved config and the manifest hash, and reports built on a `provisional*` manifest are marked as such. Variants can override weights, mode and tiling in `configs/compare.yaml`, which is how E3b weights are compared with the baseline.
 
+## Faster R-CNN multiscale training
+
+`configs/train/faster_rcnn.yaml` configures random short-edge sizes of 480, 576,
+672, 768, and 800 pixels, with a 1333-pixel long-edge cap. Build the model with
+the config's model settings to enable this during training:
+
+```python
+from vehicle_detection.training.faster_rcnn import load_config, setup_faster_rcnn
+
+config = load_config()
+model = setup_faster_rcnn(
+    num_classes=len(config["data"]["classes"]), seed=0, **config["model"]
+)
+model.train()
+# Inside your training loop, pass original float images in [0, 1] and targets:
+# losses = model(images, targets)
+# loss = sum(losses.values())
+# optimizer.zero_grad()
+# loss.backward()
+# optimizer.step()
+```
+
+The model's transform samples a size per image on every training forward pass,
+preserves aspect ratio, and scales boxes with the image. Targets must contain
+pixel-coordinate `xyxy` boxes and labels starting at 1. Calling `model.eval()`
+uses the last configured size (800), subject to the same long-edge cap.
+Pass an integer `min_size` for single-scale training. Direct setup calls retain
+the original 800/1333 defaults; multiscale settings are enabled by the config.
+
 ## Workflow
 
 - `main`: releases only, versioned with release-please.
