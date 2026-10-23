@@ -58,7 +58,10 @@ def setup_faster_rcnn(
     
     if seed is not None:
         set_seed(seed)
-    model = fasterrcnn_resnet50_fpn(weights=weights, weights_backbone=weights_backbone, min_size=min_size, max_size=max_size)
+    model = fasterrcnn_resnet50_fpn(weights=weights,
+                                    weights_backbone=weights_backbone,
+                                    min_size=min_size,
+                                    max_size=max_size)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes + 1)
     return model.to(device or best_device())
