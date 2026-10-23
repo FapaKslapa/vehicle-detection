@@ -104,6 +104,22 @@ Everything lands in `runs/compare/analysis/`; start with `summary.md`.
 
 `just analyse runs/compare --help` lists the options (`--variants`, `--gallery 0`, ...).
 
+### Class-agnostic duplicate removal
+
+Detector NMS and SAHI's tile merging run per class, so one vehicle can survive as both "car"
+and "sedan" and be counted twice (`cross_class_duplicate` above). `just dedupe <run-dir>`
+applies class-agnostic NMS to the saved predictions, without running the model, and writes
+`<run-dir>_agnostic/` with the original variants plus `<variant>-agn50` and `-agn70`. The
+counting threshold of the new variants is re-tuned on val; on test pass
+`--thresholds-from <val run>_agnostic/comparison.csv`. The new folder works with
+`just analyse` and `experiments.bootstrap` like any `compare` run:
+
+```bash
+just dedupe runs/val_all
+just analyse runs/val_all_agnostic
+uv run --no-sync python -m vehicle_detection.experiments.bootstrap run_dir=runs/val_all_agnostic coco_path=data/processed/coco.json reference=E1-full-1024 split=val out_dir=runs/val_all_agnostic/bootstrap
+```
+
 ## Faster R-CNN multiscale training
 
 `configs/train/faster_rcnn.yaml` configures random short-edge sizes of 480, 576,

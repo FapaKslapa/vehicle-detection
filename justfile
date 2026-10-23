@@ -78,3 +78,6 @@ scene-split coco images out="splits/v1_candidate.csv" *flags:
 
 analyse run_dir *flags:
     uv run --no-sync python -m vehicle_detection.evaluation.analyse --run-dir {{run_dir}} {{flags}}
+
+dedupe run_dir *flags:
+    uv run --no-sync python -m vehicle_detection.evaluation.dedupe --run-dir {{run_dir}} {{flags}}
