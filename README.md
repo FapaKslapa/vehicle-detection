@@ -69,6 +69,41 @@ just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/
 
 `just compare` evaluates `full`, `sliced` and `adaptive` variants of the same weights on one split and writes `comparison.csv` and `comparison.md` with detection metrics, counting error, seconds per image and peak memory. Predictions are kept down to a confidence of 0.01 (`configs/postprocess/eval.yaml`) so that AP is computed on the full precision-recall curve, and the counting threshold grid must stay above that floor. The counting threshold is tuned on the split it is given, so tune on `val` and pass `threshold=<value>` for `test`; tuning on `test` is refused. Every run writes `run.json` or `provenance.json` with the full resolved config and the manifest hash, and reports built on a `provisional*` manifest are marked as such. Variants can override weights, mode and tiling in `configs/compare.yaml`, which is how E3b weights are compared with the baseline.
 
+## Evaluation, counting and error analysis
+
+`just analyse <run-dir>` takes the output folder of `just compare` and explains the numbers in
+`comparison.csv`. It reuses the run's split, image subset and per-variant thresholds (from
+`provenance.json` and `comparison.csv`), so every figure lines up with what `compare` reported.
+
+```bash
+just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images data/weights/E3b-yolo26n-512.pt split=val
+just analyse runs/compare
+```
+
+Everything lands in `runs/compare/analysis/`; start with `summary.md`.
+
+- **Finding vs naming** (`localisation.csv`): AP, precision, recall and F1 with and without the
+  class. A large gap means vehicles are found but given the wrong class.
+- **Error types** (`outcomes.csv`, `error_types.png`): every prediction above the threshold is
+  `correct`, `duplicate`, `cross_class_duplicate` (a second box of another class on a vehicle
+  that is already found, which inflates counts because NMS runs per class), `classification`,
+  `localization`, `both` or `background`; every true vehicle is `detected`, `wrong_class`,
+  `poorly_localized` or `missed`. Definitions follow TIDE and are documented in
+  `vehicle_detection.evaluation.errors`; `correct` equals the true positives of
+  `experiments.metrics`.
+- **Confusion matrix** (`<variant>/confusion.png`): which class each found vehicle was given.
+- **Recall breakdowns** (`recall_breakdown.csv`, `recall_by_*.png`): by class, size, whether
+  the vehicle is cut by the image edge, vehicles per image, location and scene. Size bins are
+  the dataset's quartiles of sqrt(area) (60, 77, 100 px), because only 2% of TRANSSET boxes are
+  COCO-small; change them with `--size-edges`.
+- **Counting** (`counting.csv`, `<variant>/counts_per_image.csv`, `<variant>/counts.png`):
+  per-image true and predicted counts, total and per class, with MAE, RMSE, signed bias and
+  MAE relative to the mean count. `vehicle_detection.counting.counts.predicted_counts` gives the
+  same per-image counts for unseen images without labels.
+- **Gallery** (`<variant>/gallery/`): the worst images with every box tagged by its outcome.
+
+`just analyse runs/compare --help` lists the options (`--variants`, `--gallery 0`, ...).
+
 ## Faster R-CNN multiscale training
 
 `configs/train/faster_rcnn.yaml` configures random short-edge sizes of 480, 576,
