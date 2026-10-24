@@ -13,7 +13,7 @@ from vehicle_detection.evaluation.errors import (
     label_errors,
     localisation_summary,
 )
-from vehicle_detection.experiments.metrics import match_counts
+from vehicle_detection.evaluation.metrics import match_counts
 
 CATEGORIES = [{"id": 1, "name": "car"}, {"id": 2, "name": "sedan"}, {"id": 3, "name": "truck"}]
 CAR, SEDAN, TRUCK = 1, 2, 3

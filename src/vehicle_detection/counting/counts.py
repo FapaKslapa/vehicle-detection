@@ -6,7 +6,7 @@ with no labels. ``count_summary`` reports MAE and RMSE as the assignment asks, p
 signed bias (positive = over-counting) and the MAE relative to the mean true count, which
 makes the error readable: TRANSSET images hold only 4.6 vehicles on average.
 
-The total-count MAE and RMSE and the per-class MAE equal ``experiments.metrics``'s
+The total-count MAE and RMSE and the per-class MAE equal ``evaluation.metrics``'s
 ``counting_metrics`` for the same threshold.
 """
 

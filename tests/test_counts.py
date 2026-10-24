@@ -10,7 +10,7 @@ from vehicle_detection.counting.counts import (
     count_table,
     predicted_counts,
 )
-from vehicle_detection.experiments.metrics import counting_metrics
+from vehicle_detection.evaluation.metrics import counting_metrics
 
 CATEGORIES = [{"id": 1, "name": "car"}, {"id": 2, "name": "pickup truck"}]
 

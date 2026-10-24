@@ -66,7 +66,7 @@ from vehicle_detection.evaluation.merge import (
     merge_summary,
     parse_group,
 )
-from vehicle_detection.experiments.metrics import detection_metrics
+from vehicle_detection.evaluation.metrics import detection_metrics
 from vehicle_detection.reporting.figures import (
     ERROR_PANELS,
     RECALL_MEASURES,

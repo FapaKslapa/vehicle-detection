@@ -15,7 +15,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from vehicle_detection.data.coco_split import load_coco
 from vehicle_detection.device import best_device
-from vehicle_detection.experiments.metrics import (
+from vehicle_detection.evaluation.metrics import (
     CountingMetrics,
     DetectionMetrics,
     MatchMetrics,

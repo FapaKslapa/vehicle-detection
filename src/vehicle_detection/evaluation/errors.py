@@ -5,7 +5,7 @@ every ground-truth box. The outcomes follow TIDE (Bolya et al., ECCV 2020) with 
 choices made explicit:
 
 - Matching is the greedy, class-aware IoU >= 0.5 matching of
-  ``experiments.metrics.match_counts``, so ``correct`` predictions are exactly its true
+  ``evaluation.metrics.match_counts``, so ``correct`` predictions are exactly its true
   positives and the precision, recall and F1 reported by ``compare`` can be split into
   these outcomes without any disagreement.
 - A prediction that lands (IoU >= 0.5) on a vehicle already found under another class is
@@ -301,7 +301,7 @@ def _ranked_predictions(
                     position, xyxy(result["bbox"]), result["category_id"], float(result["score"])
                 )
             )
-    # stable sort: equal scores keep the input order, as in experiments.metrics.match_counts
+    # stable sort: equal scores keep the input order, as in evaluation.metrics.match_counts
     return {image_id: sorted(items, key=lambda p: -p.score) for image_id, items in grouped.items()}
 
 
@@ -319,7 +319,7 @@ def _greedy_match(
         for t_index, truth in enumerate(truths):
             if t_index in taken or (same_class and truth.category_id != prediction.category_id):
                 continue
-            # ">=" keeps the last of equal candidates, like experiments.metrics.match_counts
+            # ">=" keeps the last of equal candidates, like evaluation.metrics.match_counts
             if overlaps[p_index][t_index] >= best_iou:
                 best, best_iou = t_index, overlaps[p_index][t_index]
         if best is not None:
