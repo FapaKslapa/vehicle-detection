@@ -94,6 +94,9 @@ def test_the_analysis_writes_every_table_and_figure(run_dir):
         "error_types.png",
         "recall_by_size_bin.png",
         "recall_by_category.png",
+        "recall_by_size_and_edge.png",
+        "merged.csv",
+        "merged_counting.csv",
     ):
         assert (out / name).is_file(), name
     for variant in ("perfect", "confused"):
@@ -104,6 +107,8 @@ def test_the_analysis_writes_every_table_and_figure(run_dir):
             "counts_per_image.csv",
             "gt_boxes.csv",
             "predictions.csv",
+            "confusion_merged.csv",
+            "confusion_merged.png",
         ):
             assert (out / variant / name).is_file(), f"{variant}/{name}"
         assert len(list((out / variant / "gallery").glob("*.jpg"))) == 2
@@ -162,3 +167,29 @@ def test_the_subset_matches_the_one_used_for_predictions(run_dir):
         ours = select_subset(config["coco_path"], config["manifest_path"], "val", limit)
         theirs = select_split_subset(config["coco_path"], config["manifest_path"], "val", limit)
         assert ours == theirs
+
+
+def test_merging_the_car_types_forgives_mix_ups_inside_the_group(run_dir):
+    main(["--run-dir", str(run_dir), "--gallery", "0"])
+    merged = pd.read_csv(run_dir / "analysis" / "merged.csv").set_index("variant")
+    # car and sedan are both passenger-car types: calling a sedan a car is no longer an error
+    assert merged.loc["confused", "class_accuracy_when_found"] == pytest.approx(0.5)
+    assert merged.loc["confused", "class_accuracy_merged"] == pytest.approx(1.0)
+    assert merged.loc["confused", "share_of_class_errors_within_group"] == pytest.approx(1.0)
+    assert merged.loc["confused", "members"] == "car, sedan"
+    summary = (run_dir / "analysis" / "summary.md").read_text()
+    assert '## If car, sedan were one class ("passenger car")' in summary
+    assert "## Recall (any class) by size, inside the image vs cut by the image edge" in summary
+
+
+def test_the_merge_can_be_turned_off(run_dir):
+    main(["--run-dir", str(run_dir), "--gallery", "0", "--merge-group", "none"])
+    out = run_dir / "analysis"
+    assert not (out / "merged.csv").exists()
+    assert not (out / "perfect" / "confusion_merged.csv").exists()
+    assert "were one class" not in (out / "summary.md").read_text()
+
+
+def test_a_group_that_does_not_match_the_classes_is_skipped(run_dir):
+    main(["--run-dir", str(run_dir), "--gallery", "0", "--merge-group", "big=truck,van"])
+    assert not (run_dir / "analysis" / "merged.csv").exists()

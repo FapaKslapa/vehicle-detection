@@ -3,6 +3,10 @@
 COCO's small/medium/large cut-offs (32 and 96 px) put only 2% of TRANSSET boxes in
 "small", so size is binned on this dataset's own quartiles of sqrt(area) instead:
 60, 77 and 100 px on the full 1024x1024 images.
+
+``size_and_edge`` crosses size with whether the box touches the image edge (the frames are
+crops of 4K video, so those vehicles are partly outside the picture). It answers whether
+the small vehicles the model misses are mostly the cut-off ones.
 """
 
 from __future__ import annotations
@@ -19,8 +23,18 @@ from vehicle_detection.evaluation.errors import TruthOutcome, category_names
 DEFAULT_SIZE_EDGES: tuple[float, ...] = (60.0, 77.0, 100.0)
 DEFAULT_DENSITY_EDGES: tuple[int, ...] = (3, 6, 10)
 EDGE_MARGIN = 0.5
-BREAKDOWN_ATTRIBUTES = ("category", "size_bin", "at_edge", "density_bin", "location", "scene")
+BREAKDOWN_ATTRIBUTES = (
+    "category",
+    "size_bin",
+    "at_edge",
+    "size_and_edge",
+    "density_bin",
+    "location",
+    "scene",
+)
 UNKNOWN = "unknown"
+INSIDE = "inside"
+AT_EDGE = "edge"
 
 
 def bin_labels(edges: Sequence[float], integer: bool = False) -> list[str]:
@@ -42,6 +56,10 @@ def bin_of(value: float, edges: Sequence[float], labels: Sequence[str]) -> str:
         if value < edge:
             return label
     return labels[-1]
+
+
+def size_and_edge_label(size_bin: str, at_edge: bool) -> str:
+    return f"{size_bin} {AT_EDGE if at_edge else INSIDE}"
 
 
 def truth_attributes(
@@ -67,6 +85,8 @@ def truth_attributes(
         x, y, width, height = annotation["bbox"]
         side = (width * height) ** 0.5
         vehicles = per_image[annotation["image_id"]]
+        size_bin = bin_of(side, size_edges, size_labels)
+        at_edge = _touches_edge(x, y, width, height, image["width"], image["height"])
         rows.append(
             {
                 "annotation_index": position,
@@ -74,8 +94,9 @@ def truth_attributes(
                 "file_name": image["file_name"],
                 "category": names[annotation["category_id"]],
                 "side": side,
-                "size_bin": bin_of(side, size_edges, size_labels),
-                "at_edge": _touches_edge(x, y, width, height, image["width"], image["height"]),
+                "size_bin": size_bin,
+                "at_edge": at_edge,
+                "size_and_edge": size_and_edge_label(size_bin, at_edge),
                 "vehicles_in_image": vehicles,
                 "density_bin": bin_of(vehicles, density_edges, density_labels),
                 "location": location_of.get(stem, UNKNOWN),
@@ -87,6 +108,11 @@ def truth_attributes(
         return frame
     frame["category"] = pd.Categorical(frame["category"], categories=list(names.values()))
     frame["size_bin"] = pd.Categorical(frame["size_bin"], categories=size_labels, ordered=True)
+    frame["size_and_edge"] = pd.Categorical(
+        frame["size_and_edge"],
+        categories=[size_and_edge_label(s, e) for s in size_labels for e in (False, True)],
+        ordered=True,
+    )
     frame["density_bin"] = pd.Categorical(
         frame["density_bin"], categories=density_labels, ordered=True
     )

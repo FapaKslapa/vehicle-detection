@@ -81,6 +81,11 @@ ERROR_PANELS = (
     ("missed", "Missed vehicle"),
 )
 VALUE_NAMES = {"at_edge": {"False": "inside the image", "True": "cut by the edge"}}
+RECALL_MEASURES = (
+    ("recall_any_class", "Found, any class"),
+    ("recall_correct_class", "Found and given the right class"),
+)
+WRAP_FROM = 10
 
 
 def plot_confusion(matrix: pd.DataFrame, path: str | Path, title: str) -> Path:
@@ -154,7 +159,11 @@ def plot_error_types(per_image: pd.DataFrame, path: str | Path, title: str) -> P
 
 
 def plot_recall_heatmap(
-    breakdowns: Mapping[str, pd.DataFrame], attribute: str, path: str | Path, title: str
+    breakdowns: Mapping[str, pd.DataFrame],
+    attribute: str,
+    path: str | Path,
+    title: str,
+    measures: Sequence[tuple[str, str]] = RECALL_MEASURES,
 ) -> Path:
     variants = list(breakdowns)
     first = breakdowns[variants[0]]
@@ -162,10 +171,6 @@ def plot_recall_heatmap(
     values = list(first["value"])
     boxes = dict(zip(first["value"], first["boxes"], strict=True))
     names = VALUE_NAMES.get(attribute, {})
-    measures = (
-        ("recall_any_class", "Found, any class"),
-        ("recall_correct_class", "Found and given the right class"),
-    )
     tables = {
         column: np.array(
             [
@@ -182,13 +187,18 @@ def plot_recall_heatmap(
     finite = np.concatenate([table[np.isfinite(table)] for table in tables.values()])
     low = max(0.0, math.floor(finite.min(initial=1.0) * 10) / 10 - 0.1)
     norm = Normalize(vmin=low, vmax=max(float(finite.max(initial=1.0)), low + 0.1))
-    column_labels = [f"{_wrap(names.get(value, value))}\nn={boxes[value]}" for value in values]
+    shown = [str(names.get(value, value)) for value in values]
+    wrap = any(len(label) > WRAP_FROM for label in shown)
+    column_labels = [
+        f"{_wrap(label) if wrap else label}\nn={boxes[value]}"
+        for label, value in zip(shown, values, strict=True)
+    ]
     with matplotlib.rc_context(STYLE):
-        cell = 0.95 if max(len(label) for label in column_labels) > 14 else 0.8
-        width = 1.4 + 2 * cell * len(values) + 0.6
+        cell = 0.95 if max(len(label) for label in shown) > 14 else 0.8
+        width = 1.4 + len(measures) * cell * len(values) + 0.6
         height = HEADER_INCHES + 1.1 + 0.36 * len(variants)
         figure = Figure(figsize=(max(width, 6.5), height))
-        grid = figure.subplots(1, 2, squeeze=False)
+        grid = figure.subplots(1, len(measures), squeeze=False)
         for index, (axes, (column, label)) in enumerate(zip(grid.flat, measures, strict=True)):
             table = tables[column]
             text = [[_percent(value) for value in row] for row in table]
@@ -295,7 +305,7 @@ def _top(figure: Figure) -> float:
 
 def _wrap(label: str) -> str:
     words = str(label).split(" ")
-    if len(words) == 1 or len(label) <= 10:
+    if len(words) == 1:
         return str(label)
     middle = len(words) // 2
     return " ".join(words[:middle]) + "\n" + " ".join(words[middle:])

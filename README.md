@@ -93,9 +93,14 @@ Everything lands in `runs/compare/analysis/`; start with `summary.md`.
   `experiments.metrics`.
 - **Confusion matrix** (`<variant>/confusion.png`): which class each found vehicle was given.
 - **Recall breakdowns** (`recall_breakdown.csv`, `recall_by_*.png`): by class, size, whether
-  the vehicle is cut by the image edge, vehicles per image, location and scene. Size bins are
-  the dataset's quartiles of sqrt(area) (60, 77, 100 px), because only 2% of TRANSSET boxes are
-  COCO-small; change them with `--size-edges`.
+  the vehicle is cut by the image edge, size and edge together (are the small misses the
+  cut-off vehicles?), vehicles per image, location and scene. Size bins are the dataset's
+  quartiles of sqrt(area) (60, 77, 100 px), because only 2% of TRANSSET boxes are COCO-small;
+  change them with `--size-edges`.
+- **Car types merged** (`merged.csv`, `merged_counting.csv`, `<variant>/confusion_merged.png`):
+  class accuracy, AP and per-class count error with car, hatchback, sedan and suv scored as
+  one "passenger car" class, and the share of wrong-class errors that are only car-type
+  mix-ups. Choose another group with `--merge-group "name=a,b,..."`, or `--merge-group none`.
 - **Counting** (`counting.csv`, `<variant>/counts_per_image.csv`, `<variant>/counts.png`):
   per-image true and predicted counts, total and per class, with MAE, RMSE, signed bias and
   MAE relative to the mean count. `vehicle_detection.counting.counts.predicted_counts` gives the

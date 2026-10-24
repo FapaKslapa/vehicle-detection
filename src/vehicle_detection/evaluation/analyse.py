@@ -7,9 +7,13 @@ directory written by ``experiments.compare`` and writes to ``<run-dir>/analysis`
   outcomes.csv                   prediction and ground-truth outcomes per variant
   localisation.csv               class-aware vs class-agnostic AP, precision, recall, F1
   counting.csv                   count MAE, RMSE, bias, relative MAE (total and per class)
-  recall_breakdown.csv           recall by class, size, image edge, density, location, scene
+  recall_breakdown.csv           recall by class, size, image edge, size x edge, density,
+                                 location, scene
+  merged.csv                     class accuracy, AP and count error with the passenger-car
+  merged_counting.csv            types merged into one class (``--merge-group``)
   error_types.png, recall_by_*.png
   <variant>/confusion.csv, confusion.png
+  <variant>/confusion_merged.csv, confusion_merged.png
   <variant>/counts_per_image.csv, counts.png
   <variant>/gt_boxes.csv         every ground-truth box with its attributes and outcome
   <variant>/predictions.csv      every prediction above the threshold with its outcome
@@ -33,7 +37,7 @@ from typing import Any
 
 import pandas as pd
 
-from vehicle_detection.counting.counts import TOTAL, count_summary, count_table
+from vehicle_detection.counting.counts import TOTAL, count_summary, count_table, slug
 from vehicle_detection.data.coco_split import load_coco, split_coco_by_manifest
 from vehicle_detection.data.manifest import load_manifest
 from vehicle_detection.evaluation.breakdown import (
@@ -54,9 +58,18 @@ from vehicle_detection.evaluation.errors import (
     label_errors,
     localisation_summary,
 )
+from vehicle_detection.evaluation.merge import (
+    DEFAULT_GROUP_TEXT,
+    ClassGroup,
+    merge_categories,
+    merge_matrix,
+    merge_summary,
+    parse_group,
+)
 from vehicle_detection.experiments.metrics import detection_metrics
 from vehicle_detection.reporting.figures import (
     ERROR_PANELS,
+    RECALL_MEASURES,
     plot_confusion,
     plot_count_grid,
     plot_error_types,
@@ -91,6 +104,8 @@ class VariantAnalysis:
     counting: pd.DataFrame
     breakdown: pd.DataFrame
     warnings: tuple[str, ...]
+    merged: dict[str, Any] | None = None
+    merged_counting: pd.DataFrame | None = None
 
 
 def select_subset(
@@ -196,6 +211,7 @@ def analyse_variant(
     size_edges: Sequence[float],
     density_edges: Sequence[int],
     gallery: int,
+    group: ClassGroup | None = None,
 ) -> VariantAnalysis:
     _check_images(gt, results, name)
     out_dir = settings.out_dir / name
@@ -247,6 +263,7 @@ def analyse_variant(
         **labels.truth_counts(),
     }
 
+    merged, merged_counting = _merged(name, gt, results, threshold, matrix, aware, group, out_dir)
     matrix.to_csv(out_dir / "confusion.csv")
     table.to_csv(out_dir / "gt_boxes.csv", index=False)
     labels.predictions.assign(category=labels.predictions["category_id"].map(names)).to_csv(
@@ -271,7 +288,45 @@ def analyse_variant(
         counting=counting.assign(variant=name, threshold=threshold),
         breakdown=breakdown.assign(variant=name),
         warnings=tuple(warnings),
+        merged=merged,
+        merged_counting=merged_counting,
     )
+
+
+def _merged(
+    name: str,
+    gt: Mapping[str, Any],
+    results: Sequence[Mapping[str, Any]],
+    threshold: float,
+    matrix: pd.DataFrame,
+    aware: tuple[float, float],
+    group: ClassGroup | None,
+    out_dir: Path,
+) -> tuple[dict[str, Any] | None, pd.DataFrame | None]:
+    if group is None or not group.applies_to(list(category_names(gt).values())):
+        return None, None
+    merged_gt, merged_results = merge_categories(gt, results, group)
+    merged_matrix = merge_matrix(matrix, group)
+    merged_metrics = detection_metrics(merged_gt, merged_results)
+    counting = count_summary(
+        count_table(merged_gt, merged_results, threshold), merged_gt["categories"]
+    )
+    merged_matrix.to_csv(out_dir / "confusion_merged.csv")
+    plot_confusion(
+        merged_matrix,
+        out_dir / "confusion_merged.png",
+        f"{name}: classes, with {group.name} as one class",
+    )
+    summary = {
+        "variant": name,
+        **merge_summary(matrix, group),
+        "ap": aware[0],
+        "ap_merged": merged_metrics.ap,
+        "ap50": aware[1],
+        "ap50_merged": merged_metrics.ap50,
+        "group_count_mae": float(counting.set_index("target").loc[slug(group.name), "mae"]),
+    }
+    return summary, counting.assign(variant=name, threshold=threshold)
 
 
 def write_summary(
@@ -306,6 +361,7 @@ def write_summary(
             attribute,
             out / f"recall_by_{attribute}.png",
             f"Recall by {attribute.replace('_', ' ')}",
+            RECALL_MEASURES[:1] if attribute == "size_and_edge" else RECALL_MEASURES,
         )
 
     totals = counting[counting["target"] == TOTAL].drop(columns=["target"])
@@ -317,6 +373,8 @@ def write_summary(
         index="variant", columns="value", values="recall_any_class", sort=False
     )
     size = size.reindex(index=[a.name for a in analyses])
+    size_edge = _with_counts(breakdown, "size_and_edge", [a.name for a in analyses])
+    merged_section = _merged_section(analyses, out)
     shares = outcomes.set_index("variant")
     prediction_keys = [o.value for o in PredictionOutcome]
     truth_keys = [o.value for o in TruthOutcome]
@@ -358,6 +416,14 @@ def write_summary(
         "",
         markdown_table(size, index=True),
         "",
+        "## Recall (any class) by size, inside the image vs cut by the image edge",
+        "",
+        "n = true vehicles in each group. If small vehicles at the edge are found much less "
+        "often than small ones inside, the small misses are mostly cut-off vehicles.",
+        "",
+        markdown_table(size_edge, index=True),
+        "",
+        *merged_section,
     ]
     notes = [warning for a in analyses for warning in a.warnings]
     if notes:
@@ -373,6 +439,12 @@ def run(args: argparse.Namespace) -> str:
     gt = select_subset(settings.coco_path, settings.manifest_path, settings.split, settings.limit)
     manifest = load_manifest(settings.manifest_path)
     settings.out_dir.mkdir(parents=True, exist_ok=True)
+    group = parse_group(args.merge_group)
+    if group is not None and not group.applies_to(list(category_names(gt).values())):
+        print(
+            f"--merge-group: fewer than two of {group.members} are classes here, skipped",
+            file=sys.stderr,
+        )
     analyses = []
     for name, results in predictions.items():
         row = None
@@ -391,6 +463,7 @@ def run(args: argparse.Namespace) -> str:
                 args.size_edges,
                 args.density_edges,
                 args.gallery,
+                group,
             )
         )
     return write_summary(analyses, gt, settings)
@@ -416,6 +489,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gallery", type=int, default=24, help="annotated worst images per variant (0 = none)"
     )
+    parser.add_argument(
+        "--merge-group",
+        default=DEFAULT_GROUP_TEXT,
+        help="classes to also score as one: 'name=a,b,...', or 'none' to skip",
+    )
     return parser
 
 
@@ -423,6 +501,61 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     print(run(args))
     return 0
+
+
+def _with_counts(breakdown: pd.DataFrame, attribute: str, variants: Sequence[str]) -> pd.DataFrame:
+    rows = breakdown[breakdown["attribute"] == attribute]
+    table = rows.pivot_table(
+        index="variant", columns="value", values="recall_any_class", sort=False
+    ).reindex(index=list(variants))
+    first = rows[rows["variant"] == variants[0]]
+    boxes = dict(zip(first["value"], first["boxes"], strict=True))
+    return table.rename(columns=lambda value: f"{value} (n={boxes.get(value, 0)})")
+
+
+def _merged_section(analyses: Sequence[VariantAnalysis], out: Path) -> list[str]:
+    summaries = [a.merged for a in analyses if a.merged is not None]
+    if not summaries:
+        return []
+    merged = pd.DataFrame(summaries)
+    merged.to_csv(out / "merged.csv", index=False)
+    counting = pd.concat(
+        [a.merged_counting for a in analyses if a.merged_counting is not None], ignore_index=True
+    )
+    counting = counting[
+        [
+            "variant",
+            "threshold",
+            *[c for c in counting.columns if c not in ("variant", "threshold")],
+        ]
+    ]
+    counting.to_csv(out / "merged_counting.csv", index=False)
+    first = summaries[0]
+    columns = [
+        "variant",
+        "class_accuracy_when_found",
+        "class_accuracy_merged",
+        "share_of_class_errors_within_group",
+        "group_exact_type_accuracy",
+        "group_any_member_accuracy",
+        "ap",
+        "ap_merged",
+        "ap50",
+        "ap50_merged",
+        "group_count_mae",
+    ]
+    return [
+        f'## If {first["members"]} were one class ("{first["group"]}")',
+        "",
+        "`share_of_class_errors_within_group`: of all found vehicles given the wrong class, "
+        "the share where both the true and the given class are in the group. "
+        "`group_exact_type_accuracy`: found group vehicles given their exact type; "
+        "`group_any_member_accuracy`: given any type in the group. "
+        f'`group_count_mae`: per-image count MAE of the merged "{first["group"]}" class.',
+        "",
+        markdown_table(merged[columns]),
+        "",
+    ]
 
 
 def _check_images(gt: Mapping[str, Any], results: Sequence[Mapping[str, Any]], name: str) -> None:

@@ -124,3 +124,39 @@ def test_every_box_needs_an_outcome():
             [],
             category_names(gt),
         )
+
+
+def test_size_and_edge_crosses_the_size_bin_with_the_image_edge():
+    gt = make_gt([truth(1, 1, 0, 300, 50), truth(1, 2, 500, 500, 80), truth(2, 1, 100, 100, 50)])
+    attributes = truth_attributes(gt, MANIFEST).set_index("annotation_index")
+    assert list(attributes["size_and_edge"].astype(str)) == [
+        "<60 edge",
+        "77-100 inside",
+        "<60 inside",
+    ]
+    assert list(attributes["size_and_edge"].cat.categories) == [
+        "<60 inside",
+        "<60 edge",
+        "60-77 inside",
+        "60-77 edge",
+        "77-100 inside",
+        "77-100 edge",
+        ">=100 inside",
+        ">=100 edge",
+    ]
+
+
+def test_recall_by_size_and_edge_is_part_of_the_breakdown():
+    gt = make_gt([truth(1, 1, 0, 300, 50), truth(1, 2, 500, 500, 50)])
+    results = [{"image_id": 1, "category_id": 2, "bbox": [500, 500, 50, 50], "score": 0.9}]
+    labels = label_errors(gt, results, 0.5)
+    table = outcome_table(
+        truth_attributes(gt, MANIFEST),
+        labels.truths,
+        agnostic_matches(gt, results, 0.5),
+        results,
+        category_names(gt),
+    )
+    breakdown = recall_breakdown(table).set_index(["attribute", "value"])
+    assert breakdown.loc[("size_and_edge", "<60 inside"), "recall_any_class"] == 1.0
+    assert breakdown.loc[("size_and_edge", "<60 edge"), "recall_any_class"] == 0.0
