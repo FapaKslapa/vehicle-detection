@@ -81,3 +81,6 @@ analyse run_dir *flags:
 
 dedupe run_dir *flags:
     uv run --no-sync python -m vehicle_detection.evaluation.dedupe --run-dir {{run_dir}} {{flags}}
+
+count images weights *overrides:
+    uv run --no-sync python -m vehicle_detection.counting.run images_dir={{images}} weights={{weights}} {{overrides}}

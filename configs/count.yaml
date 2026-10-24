@@ -1,0 +1,32 @@
+defaults:
+  - tiling: e3
+  - postprocess: eval
+  - adaptive: default
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
+  - _self_
+
+images_dir: ???
+weights: ???
+# only the category list is read, so the model's labels map to the TRANSSET class names
+categories_from: data/processed/coco.json
+mode: full
+kind: ultralytics
+torchvision_name: fasterrcnn_resnet50_fpn
+input_size: null
+device: auto
+warmup: 1
+# chosen on val for E1-full-1024 with class-agnostic NMS at IoU 0.5
+# (runs/val_all_agnostic/comparison.csv); change both together for another model
+threshold: 0.35
+# class-agnostic NMS before counting; null turns it off
+dedupe_iou: 0.5
+extensions: [.jpg, .jpeg, .png]
+out_dir: runs/count
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  job:
+    chdir: false

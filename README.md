@@ -120,6 +120,28 @@ just analyse runs/val_all_agnostic
 uv run --no-sync python -m vehicle_detection.experiments.bootstrap run_dir=runs/val_all_agnostic coco_path=data/processed/coco.json reference=E1-full-1024 split=val out_dir=runs/val_all_agnostic/bootstrap
 ```
 
+### Counting vehicles in new images
+
+`just count <images-folder> <weights>` is the counting output of the system for images
+without labels. It runs the detector on every `.jpg`, `.jpeg` and `.png` in the folder,
+removes boxes that overlap a stronger box of any class (IoU 0.5), keeps boxes at or above the
+counting threshold, and writes to `runs/count/`:
+
+- `counts.csv`: one row per image, with the total and one column per class
+- `detections.json`: the counted boxes, with the image list and categories
+- `run.json`: the resolved config, a hash of the weights, timing and the totals
+
+```bash
+just count path/to/new/images data/weights/E1-control-yolo26n-1024.pt
+just count path/to/new/images data/weights/E1-control-yolo26n-1024.pt out_dir=runs/count_demo
+```
+
+The defaults in `configs/count.yaml` are the setting chosen on val for E1-full-1024 (threshold
+0.35 after class-agnostic NMS at IoU 0.5). Another model or mode needs its own threshold:
+take it from `just dedupe` on that model's validation run and pass `threshold=<value>`, plus
+`mode=`, `kind=` and `input_size=` as for `just predict`. `dedupe_iou=null` counts the raw
+boxes. Class names come from `data/processed/coco.json` (`categories_from=`).
+
 ## Faster R-CNN multiscale training
 
 `configs/train/faster_rcnn.yaml` configures random short-edge sizes of 480, 576,
