@@ -114,3 +114,47 @@ notebooks/               EDA and analysis (outputs stripped)
 data/                    DVC-managed datasets (not in git, only .dvc pointers)
 tests/
 ```
+
+### Run Faster R-CNN multiscale training
+
+Use normalized COCO annotations and a session-separated train/val manifest:
+
+```bash
+just train-faster-rcnn data/processed/coco.json data/raw/transset/TRANSSET_v2/images data.manifest_path=splits/v1.csv training.epochs=50
+```
+
+The equivalent command (also usable directly in PowerShell) is:
+
+```bash
+uv run --no-sync python -m vehicle_detection.training.faster_rcnn_train data.coco_path=data/processed/coco.json data.images_dir=data/raw/transset/TRANSSET_v2/images
+```
+
+This workflow is only for Faster R-CNN. It loads RGB float images at original
+resolution and converts COCO boxes to pixel xyxy coordinates. The model transform
+randomly selects the configured short edge for each training image and scales its
+boxes; validation uses the last short edge with the same long-edge cap. Category
+labels are derived from sorted COCO category IDs, with zero reserved for background;
+the COCO categories are authoritative rather than the descriptive classes list.
+
+Each epoch trains with SGD and evaluates full-image COCO AP on val only. The test
+split is never used. Outputs are best.pt (highest validation AP in this run), last.pt,
+checkpoint.pt (model and optimizer for resume), metrics.jsonl, and run.json
+(resolved settings, categories, and manifest hash). best.pt and last.pt are plain
+state dictionaries compatible with the existing torchvision inference adapter.
+That adapter uses its default 800/1333 resize settings; custom model resizing must
+also be configured when constructing a model for inference. Existing output
+directories are refused to protect previous runs.
+
+For an offline CPU smoke run, use model.weights=null training.device=cpu
+training.epochs=1 training.batch_size=1 'model.min_size=[64,96]'
+model.max_size=128 training.output_dir=runs/frcnn-smoke. Default pretrained weights
+require a download on their first use. Resume into a new output directory:
+
+```bash
+uv run --no-sync python -m vehicle_detection.training.faster_rcnn_train data.coco_path=data/processed/coco.json data.images_dir=data/raw/transset/TRANSSET_v2/images training.resume=runs/faster-rcnn-multiscale/checkpoint.pt training.output_dir=runs/frcnn-resumed training.epochs=100
+```
+
+Keep the original model settings and dataset when resuming; epochs is the total
+number of epochs including those already completed. The resumed directory selects
+its own best.pt among its new epochs. Provisional manifests are marked in run.json
+and must not be used for final reported results.
