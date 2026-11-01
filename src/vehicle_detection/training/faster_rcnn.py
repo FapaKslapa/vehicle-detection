@@ -46,8 +46,8 @@ def setup_faster_rcnn(
     weights: str | None = "DEFAULT",
     weights_backbone: str | None = None,
     device: torch.device | None = None,
-    seed: int | None = None, 
-    min_size: int | Sequence[int] = 800, 
+    seed: int | None = None,
+    min_size: int | Sequence[int] = 800,
     max_size: int = 1333,
 ) -> nn.Module:
     sizes = (min_size,) if isinstance(min_size, int) else tuple(min_size)
@@ -55,13 +55,12 @@ def setup_faster_rcnn(
         raise ValueError("min_size must contain positive integers")
     if type(max_size) is not int or max_size < max(sizes):
         raise ValueError("max_size must be a positive integer >= every min_size")
-    
+
     if seed is not None:
         set_seed(seed)
-    model = fasterrcnn_resnet50_fpn(weights=weights,
-                                    weights_backbone=weights_backbone,
-                                    min_size=min_size,
-                                    max_size=max_size)
+    model = fasterrcnn_resnet50_fpn(
+        weights=weights, weights_backbone=weights_backbone, min_size=min_size, max_size=max_size
+    )
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes + 1)
     return model.to(device or best_device())

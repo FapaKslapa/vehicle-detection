@@ -79,9 +79,7 @@ the config's model settings to enable this during training:
 from vehicle_detection.training.faster_rcnn import load_config, setup_faster_rcnn
 
 config = load_config()
-model = setup_faster_rcnn(
-    num_classes=len(config["data"]["classes"]), seed=0, **config["model"]
-)
+model = setup_faster_rcnn(num_classes=len(config["data"]["classes"]), seed=0, **config["model"])
 model.train()
 # Inside your training loop, pass original float images in [0, 1] and targets:
 # losses = model(images, targets)

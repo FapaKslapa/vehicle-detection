@@ -55,6 +55,7 @@ def test_config_exposes_the_weights_setting():
     assert config["model"]["weights"] == "DEFAULT"
     assert "weights_backbone" in config["model"]
 
+
 def test_training_samples_scales_and_resizes_boxes_without_mutating_targets():
     model = build(min_size=[64, 96], max_size=256).train()
     image = torch.rand(3, 40, 80)
