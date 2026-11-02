@@ -84,3 +84,6 @@ dedupe run_dir *flags:
 
 count images weights *overrides:
     uv run --no-sync python -m vehicle_detection.counting.run images_dir={{images}} weights={{weights}} {{overrides}}
+
+train-faster-rcnn coco images *overrides:
+    uv run --no-sync python -m vehicle_detection.training.faster_rcnn_train data.coco_path={{coco}} data.images_dir={{images}} {{overrides}}
