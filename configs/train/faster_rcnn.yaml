@@ -4,6 +4,9 @@ model:
   min_size: [480, 576, 672, 768, 800]
   max_size: 1333
 data:
+  coco_path: ???
+  images_dir: ???
+  manifest_path: splits/v1.csv
   classes:
     - Car
     - Truck
@@ -13,3 +16,18 @@ data:
     - Van
     - Trailer
     - Tractor
+
+training:
+  epochs: 50
+  batch_size: 2
+  workers: 0
+  lr: 0.005
+  weight_decay: 0.0005
+  seed: 0
+  device: null
+  output_dir: runs/faster-rcnn-multiscale
+  resume: null
+
+hydra:
+  job:
+    chdir: false
