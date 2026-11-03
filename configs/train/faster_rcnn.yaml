@@ -22,6 +22,7 @@ training:
   batch_size: 2
   workers: 0
   lr: 0.005
+  lr_steps: []
   weight_decay: 0.0005
   seed: 0
   device: null

@@ -9,6 +9,7 @@ from vehicle_detection.training.faster_rcnn import setup_faster_rcnn
 from vehicle_detection.training.faster_rcnn_train import (
     CocoDataset,
     collate,
+    learning_rate,
     train_epoch,
     validate,
 )
@@ -145,6 +146,7 @@ def test_real_faster_rcnn_workflow_saves_weights_and_resumes(tmp_path):
     assert classifier_key in state
     assert torch.isfinite(state[classifier_key]).all()
     assert (best.parent / "metrics.jsonl").is_file()
+    assert "epoch 1/1" in (best.parent / "train.log").read_text()
     checkpoint = best.parent / "checkpoint.pt"
     cfg.training.resume = str(checkpoint)
     cfg.training.output_dir = str(tmp_path / "resumed")
@@ -155,3 +157,9 @@ def test_real_faster_rcnn_workflow_saves_weights_and_resumes(tmp_path):
     saved = torch.load(resumed.parent / "checkpoint.pt", weights_only=True)
     assert saved["epoch"] == 1
     assert saved["provenance"]["config"]["model"]["min_size"] == [64, 96]
+
+
+def test_learning_rate_drops_tenfold_at_each_step():
+    rates = [learning_rate(0.005, [2, 4], epoch) for epoch in range(5)]
+    assert rates == pytest.approx([0.005, 0.005, 0.0005, 0.0005, 0.00005])
+    assert learning_rate(0.005, [], 40) == 0.005

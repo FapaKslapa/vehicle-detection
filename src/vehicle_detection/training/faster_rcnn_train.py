@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import time
 from collections import defaultdict
+from collections.abc import Callable, Sequence
+from datetime import datetime
 from pathlib import Path
 
 import hydra
@@ -17,7 +20,7 @@ from torchvision.transforms.functional import pil_to_tensor
 
 from vehicle_detection.data.coco_split import load_coco, split_coco_by_manifest
 from vehicle_detection.data.manifest import load_manifest
-from vehicle_detection.device import best_device
+from vehicle_detection.device import best_device, describe_device
 from vehicle_detection.experiments.metrics import detection_metrics
 from vehicle_detection.training.faster_rcnn import (
     CONFIG_PATH,
@@ -26,6 +29,32 @@ from vehicle_detection.training.faster_rcnn import (
     set_seed,
     setup_faster_rcnn,
 )
+
+LOG_EVERY = 50
+Log = Callable[[str], None]
+
+
+def file_logger(path: Path) -> Log:
+    """Print a timestamped line and append it to a file that can be read during training."""
+
+    def log(message: str) -> None:
+        line = f"{datetime.now():%Y-%m-%d %H:%M:%S} {message}"
+        print(line, flush=True)
+        with path.open("a") as stream:
+            stream.write(line + "\n")
+
+    return log
+
+
+def peak_gpu_gib(device: torch.device) -> float | None:
+    if device.type != "cuda":
+        return None
+    return torch.cuda.max_memory_reserved(device) / 2**30
+
+
+def learning_rate(base: float, steps: Sequence[int], epoch: int) -> float:
+    """Base rate divided by ten at each step; epoch is zero-based, as in the training loop."""
+    return base * 0.1 ** sum(epoch >= step for step in steps)
 
 
 class CocoDataset(Dataset):
@@ -72,11 +101,12 @@ def collate(batch):
     return list(images), list(targets)
 
 
-def train_epoch(model, loader, optimizer, device):
+def train_epoch(model, loader, optimizer, device, log: Log | None = None):
     model.train()
     total = 0.0
     count = 0
-    for images, targets in loader:
+    started = time.monotonic()
+    for step, (images, targets) in enumerate(loader, start=1):
         images = [image.to(device) for image in images]
         targets = [{key: value.to(device) for key, value in t.items()} for t in targets]
         losses = model(images, targets)
@@ -88,6 +118,11 @@ def train_epoch(model, loader, optimizer, device):
         optimizer.step()
         total += loss.detach().item() * len(images)
         count += len(images)
+        if log and step % LOG_EVERY == 0:
+            pace = (time.monotonic() - started) / step
+            peak = peak_gpu_gib(device)
+            memory = "" if peak is None else f" peak_gpu={peak:.2f}GiB"
+            log(f"  iter {step}/{len(loader)} loss={total / count:.4f} {pace:.3f}s/iter{memory}")
     if not count:
         raise ValueError("Training split is empty")
     return total / count
@@ -159,7 +194,10 @@ def run(cfg: DictConfig):
         "provisional": manifest.stem.startswith("provisional"),
     }
     (output / "run.json").write_text(json.dumps(provenance, indent=2))
+    log = file_logger(output / "train.log")
     device = torch.device(settings["device"]) if settings["device"] else best_device()
+    lr_steps = settings.get("lr_steps") or []
+    log(f"device={describe_device(device)} sizes={config['model']['min_size']} lr_steps={lr_steps}")
     model_config = dict(config["model"])
     if settings["resume"]:
         model_config.update(weights=None, weights_backbone=None)
@@ -189,8 +227,19 @@ def run(cfg: DictConfig):
     for epoch in range(start, settings["epochs"]):
         # Epoch-specific seeds also make resumed data order and scale draws repeatable.
         set_seed(settings["seed"] + epoch)
-        loss = train_epoch(model, loaders["train"], optimizer, device)
-        ap = validate(model, loaders["val"], device)
+        lr = learning_rate(settings["lr"], lr_steps, epoch)
+        for group in optimizer.param_groups:
+            group["lr"] = lr
+        log(f"epoch {epoch + 1}/{settings['epochs']} lr={lr:g}")
+        started = time.monotonic()
+        try:
+            loss = train_epoch(model, loaders["train"], optimizer, device, log)
+            trained = time.monotonic()
+            ap = validate(model, loaders["val"], device)
+        except Exception as error:
+            log(f"FAILED in epoch {epoch + 1}: {error!r}")
+            raise
+        validated = time.monotonic()
         if not math.isfinite(ap):
             raise ValueError("Validation AP is undefined")
         if ap > best:
@@ -206,10 +255,20 @@ def run(cfg: DictConfig):
             },
             output / "checkpoint.pt",
         )
-        row = {"epoch": epoch + 1, "train_loss": loss, "val_ap": ap}
+        seconds = time.monotonic() - started
+        row = {
+            "epoch": epoch + 1,
+            "train_loss": loss,
+            "val_ap": ap,
+            "lr": lr,
+            "train_seconds": round(trained - started, 1),
+            "val_seconds": round(validated - trained, 1),
+            "peak_gpu_gib": peak_gpu_gib(device),
+        }
         with (output / "metrics.jsonl").open("a") as stream:
             stream.write(json.dumps(row) + "\n")
-        print(row, flush=True)
+        remaining = (settings["epochs"] - epoch - 1) * seconds / 3600
+        log(f"{row} eta={remaining:.1f}h")
     return output / "best.pt"
 
 
