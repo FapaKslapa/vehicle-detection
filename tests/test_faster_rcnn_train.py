@@ -1,8 +1,11 @@
+import math
+
 import pytest
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader
 
+from vehicle_detection.training.faster_rcnn import setup_faster_rcnn
 from vehicle_detection.training.faster_rcnn_train import (
     CocoDataset,
     collate,
@@ -47,47 +50,59 @@ def test_negative_images_have_valid_empty_targets(tmp_path):
     assert target["labels"].shape == (0,)
 
 
-def test_training_updates_parameters_and_rejects_nonfinite_loss(tmp_path):
-    class Model(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.parameter = torch.nn.Parameter(torch.tensor(1.0))
+@pytest.mark.parametrize("short_edge", [64, 96])
+def test_real_faster_rcnn_losses_backpropagate_and_update_parameters(tmp_path, short_edge):
+    model = setup_faster_rcnn(
+        1,
+        weights=None,
+        weights_backbone=None,
+        device=torch.device("cpu"),
+        seed=7,
+        min_size=short_edge,
+        max_size=192,
+    ).train()
+    image, target = dataset(tmp_path)[0]
+    classifier = model.roi_heads.box_predictor.cls_score.weight
+    backbone = model.backbone.body.conv1.weight
+    before = classifier.detach().clone()
+    backbone_before = backbone.detach().clone()
+    losses = model([image], [target])
+    assert set(losses) == {"loss_classifier", "loss_box_reg", "loss_objectness", "loss_rpn_box_reg"}
+    assert all(torch.isfinite(loss).all() for loss in losses.values())
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+    optimizer.zero_grad(set_to_none=True)
+    sum(losses.values()).backward()
+    for parameter in (classifier, backbone):
+        assert parameter.grad is not None
+        assert torch.isfinite(parameter.grad).all()
+        assert torch.count_nonzero(parameter.grad) > 0
+    optimizer.step()
+    assert not torch.equal(classifier.detach(), before)
+    assert not torch.equal(backbone.detach(), backbone_before)
 
-        def forward(self, images, targets):
-            assert self.training
-            assert targets[0]["boxes"].shape == (1, 4)
-            return {"loss": self.parameter.square()}
 
-    model = Model()
+def test_train_epoch_and_validation_use_real_faster_rcnn(tmp_path):
+    model = setup_faster_rcnn(
+        1,
+        weights=None,
+        weights_backbone=None,
+        device=torch.device("cpu"),
+        seed=7,
+        min_size=[64, 96],
+        max_size=192,
+    )
     loader = DataLoader(dataset(tmp_path), collate_fn=collate)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
-    assert train_epoch(model, loader, optimizer, torch.device("cpu")) == 1
-    assert model.parameter.item() == pytest.approx(0.8)
-    with torch.no_grad():
-        model.parameter.fill_(float("nan"))
-    with pytest.raises(FloatingPointError):
-        train_epoch(model, loader, optimizer, torch.device("cpu"))
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+    before = model.roi_heads.box_predictor.cls_score.weight.detach().clone()
+    loss = train_epoch(model, loader, optimizer, torch.device("cpu"))
+    assert math.isfinite(loss) and loss > 0
+    assert not torch.equal(model.roi_heads.box_predictor.cls_score.weight, before)
+    ap = validate(model, loader, torch.device("cpu"))
+    assert math.isfinite(ap) and 0 <= ap <= 1
 
 
-def test_validation_maps_labels_back_to_coco_ids(tmp_path):
-    class Model(torch.nn.Module):
-        def forward(self, images):
-            assert not self.training
-            return [
-                {
-                    "boxes": torch.tensor([[10.0, 5.0, 30.0, 20.0]]),
-                    "scores": torch.tensor([0.99]),
-                    "labels": torch.tensor([1]),
-                }
-            ]
-
-    loader = DataLoader(dataset(tmp_path), collate_fn=collate)
-    assert validate(Model(), loader, torch.device("cpu")) == pytest.approx(1.0)
-
-
-def test_workflow_saves_weights_and_resumes(tmp_path, monkeypatch):
+def test_real_faster_rcnn_workflow_saves_weights_and_resumes(tmp_path):
     import json
-    from types import SimpleNamespace
 
     from omegaconf import OmegaConf
 
@@ -103,17 +118,6 @@ def test_workflow_saves_weights_and_resumes(tmp_path, monkeypatch):
     manifest = tmp_path / "split.csv"
     manifest.write_text("image_id,session_id,location,split\nframe,s1,loc,train\nval,s2,loc,val\n")
 
-    class Model(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.parameter = torch.nn.Parameter(torch.tensor(1.0))
-            self.roi_heads = SimpleNamespace(score_thresh=0.05)
-
-        def forward(self, images, targets):
-            return {"loss": self.parameter.square()}
-
-    monkeypatch.setattr(workflow, "setup_faster_rcnn", lambda *args, **kwargs: Model())
-    monkeypatch.setattr(workflow, "validate", lambda *args: 0.5)
     cfg = OmegaConf.create(
         {
             "model": {"weights": None, "min_size": [64, 96], "max_size": 128},
@@ -126,7 +130,7 @@ def test_workflow_saves_weights_and_resumes(tmp_path, monkeypatch):
                 "epochs": 1,
                 "batch_size": 1,
                 "workers": 0,
-                "lr": 0.1,
+                "lr": 0.001,
                 "weight_decay": 0.0,
                 "seed": 0,
                 "device": "cpu",
@@ -137,13 +141,17 @@ def test_workflow_saves_weights_and_resumes(tmp_path, monkeypatch):
     )
     best = workflow.run(cfg)
     state = torch.load(best, weights_only=True)
-    assert state["parameter"].item() == pytest.approx(0.8)
+    classifier_key = "roi_heads.box_predictor.cls_score.weight"
+    assert classifier_key in state
+    assert torch.isfinite(state[classifier_key]).all()
+    assert (best.parent / "metrics.jsonl").is_file()
     checkpoint = best.parent / "checkpoint.pt"
     cfg.training.resume = str(checkpoint)
     cfg.training.output_dir = str(tmp_path / "resumed")
     cfg.training.epochs = 2
     resumed = workflow.run(cfg)
-    assert torch.load(resumed, weights_only=True)["parameter"] < state["parameter"]
+    resumed_state = torch.load(resumed, weights_only=True)
+    assert not torch.equal(resumed_state[classifier_key], state[classifier_key])
     saved = torch.load(resumed.parent / "checkpoint.pt", weights_only=True)
     assert saved["epoch"] == 1
     assert saved["provenance"]["config"]["model"]["min_size"] == [64, 96]
