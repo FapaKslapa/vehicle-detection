@@ -65,9 +65,87 @@ just predict data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/
 just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/E3b/weights/best.pt split=val
 ```
 
-`splits/provisional.csv` groups visually similar frames into sessions and splits by group. It is a smoke-test split, ignored by git, and must be replaced by the shared `splits/v1.csv` before any number goes into the report. `vehicle_detection.experiments.metrics` computes COCO AP with the small, medium and large breakdown plus counting MAE and RMSE; it is provisional and is meant to be replaced by the shared evaluation module with the same inputs.
+`splits/provisional.csv` groups visually similar frames into sessions and splits by group. It is a smoke-test split, ignored by git, and must be replaced by the shared `splits/v1.csv` before any number goes into the report. `vehicle_detection.evaluation.metrics` computes COCO AP with the small, medium and large breakdown, precision, recall and F1 at IoU 0.5, and counting MAE and RMSE; `compare`, the bootstrap and the evaluation tools below (`just analyse`, `just dedupe`) all use it. It used to live in `vehicle_detection.experiments.metrics`, which still works as an alias.
 
 `just compare` evaluates `full`, `sliced` and `adaptive` variants of the same weights on one split and writes `comparison.csv` and `comparison.md` with detection metrics, counting error, seconds per image and peak memory. Predictions are kept down to a confidence of 0.01 (`configs/postprocess/eval.yaml`) so that AP is computed on the full precision-recall curve, and the counting threshold grid must stay above that floor. The counting threshold is tuned on the split it is given, so tune on `val` and pass `threshold=<value>` for `test`; tuning on `test` is refused. Every run writes `run.json` or `provenance.json` with the full resolved config and the manifest hash, and reports built on a `provisional*` manifest are marked as such. Variants can override weights, mode and tiling in `configs/compare.yaml`, which is how E3b weights are compared with the baseline.
+
+## Evaluation, counting and error analysis
+
+`just analyse <run-dir>` takes the output folder of `just compare` and explains the numbers in
+`comparison.csv`. It reuses the run's split, image subset and per-variant thresholds (from
+`provenance.json` and `comparison.csv`), so every figure lines up with what `compare` reported.
+
+```bash
+just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images data/weights/E3b-yolo26n-512.pt split=val
+just analyse runs/compare
+```
+
+Everything lands in `runs/compare/analysis/`; start with `summary.md`.
+
+- **Finding vs naming** (`localisation.csv`): AP, precision, recall and F1 with and without the
+  class. A large gap means vehicles are found but given the wrong class.
+- **Error types** (`outcomes.csv`, `error_types.png`): every prediction above the threshold is
+  `correct`, `duplicate`, `cross_class_duplicate` (a second box of another class on a vehicle
+  that is already found, which inflates counts because NMS runs per class), `classification`,
+  `localization`, `both` or `background`; every true vehicle is `detected`, `wrong_class`,
+  `poorly_localized` or `missed`. Definitions follow TIDE and are documented in
+  `vehicle_detection.evaluation.errors`; `correct` equals the true positives of
+  `evaluation.metrics`.
+- **Confusion matrix** (`<variant>/confusion.png`): which class each found vehicle was given.
+- **Recall breakdowns** (`recall_breakdown.csv`, `recall_by_*.png`): by class, size, whether
+  the vehicle is cut by the image edge, size and edge together (are the small misses the
+  cut-off vehicles?), vehicles per image, location and scene. Size bins are the dataset's
+  quartiles of sqrt(area) (60, 77, 100 px), because only 2% of TRANSSET boxes are COCO-small;
+  change them with `--size-edges`.
+- **Car types merged** (`merged.csv`, `merged_counting.csv`, `<variant>/confusion_merged.png`):
+  class accuracy, AP and per-class count error with car, hatchback, sedan and suv scored as
+  one "passenger car" class, and the share of wrong-class errors that are only car-type
+  mix-ups. Choose another group with `--merge-group "name=a,b,..."`, or `--merge-group none`.
+- **Counting** (`counting.csv`, `<variant>/counts_per_image.csv`, `<variant>/counts.png`):
+  per-image true and predicted counts, total and per class, with MAE, RMSE, signed bias and
+  MAE relative to the mean count. `vehicle_detection.counting.counts.predicted_counts` gives the
+  same per-image counts for unseen images without labels.
+- **Gallery** (`<variant>/gallery/`): the worst images with every box tagged by its outcome.
+
+`just analyse runs/compare --help` lists the options (`--variants`, `--gallery 0`, ...).
+
+### Class-agnostic duplicate removal
+
+Detector NMS and SAHI's tile merging run per class, so one vehicle can survive as both "car"
+and "sedan" and be counted twice (`cross_class_duplicate` above). `just dedupe <run-dir>`
+applies class-agnostic NMS to the saved predictions, without running the model, and writes
+`<run-dir>_agnostic/` with the original variants plus `<variant>-agn50` and `-agn70`. The
+counting threshold of the new variants is re-tuned on val; on test pass
+`--thresholds-from <val run>_agnostic/comparison.csv`. The new folder works with
+`just analyse` and `experiments.bootstrap` like any `compare` run:
+
+```bash
+just dedupe runs/val_all
+just analyse runs/val_all_agnostic
+uv run --no-sync python -m vehicle_detection.experiments.bootstrap run_dir=runs/val_all_agnostic coco_path=data/processed/coco.json reference=E1-full-1024 split=val out_dir=runs/val_all_agnostic/bootstrap
+```
+
+### Counting vehicles in new images
+
+`just count <images-folder> <weights>` is the counting output of the system for images
+without labels. It runs the detector on every `.jpg`, `.jpeg` and `.png` in the folder,
+removes boxes that overlap a stronger box of any class (IoU 0.5), keeps boxes at or above the
+counting threshold, and writes to `runs/count/`:
+
+- `counts.csv`: one row per image, with the total and one column per class
+- `detections.json`: the counted boxes, with the image list and categories
+- `run.json`: the resolved config, a hash of the weights, timing and the totals
+
+```bash
+just count path/to/new/images data/weights/E1-control-yolo26n-1024.pt
+just count path/to/new/images data/weights/E1-control-yolo26n-1024.pt out_dir=runs/count_demo
+```
+
+The defaults in `configs/count.yaml` are the setting chosen on val for E1-full-1024 (threshold
+0.35 after class-agnostic NMS at IoU 0.5). Another model or mode needs its own threshold:
+take it from `just dedupe` on that model's validation run and pass `threshold=<value>`, plus
+`mode=`, `kind=` and `input_size=` as for `just predict`. `dedupe_iou=null` counts the raw
+boxes. Class names come from `data/processed/coco.json` (`categories_from=`).
 
 ## Faster R-CNN multiscale training
 

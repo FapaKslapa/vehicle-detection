@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from vehicle_detection.experiments.metrics import (
+from vehicle_detection.evaluation.metrics import (
     best_threshold,
     counting_metrics,
     detection_metrics,
