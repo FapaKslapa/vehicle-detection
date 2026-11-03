@@ -17,8 +17,8 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
 from vehicle_detection.data.manifest import load_manifest
+from vehicle_detection.evaluation.metrics import MAX_DETECTIONS, match_counts
 from vehicle_detection.experiments.compare import CONFIG_DIR, to_markdown
-from vehicle_detection.experiments.metrics import MAX_DETECTIONS, match_counts
 from vehicle_detection.inference.run import select_split_subset
 
 METRICS = ("ap", "f1", "mae")

@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from vehicle_detection.evaluation.metrics import detection_metrics, match_metrics
 from vehicle_detection.experiments.bootstrap import (
     AveragePrecision,
     bootstrap,
@@ -8,7 +9,6 @@ from vehicle_detection.experiments.bootstrap import (
     metric_values,
     resample_weights,
 )
-from vehicle_detection.experiments.metrics import detection_metrics, match_metrics
 
 CATEGORIES = [{"id": 1, "name": "car"}, {"id": 2, "name": "truck"}]
 

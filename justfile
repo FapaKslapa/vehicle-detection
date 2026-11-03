@@ -76,5 +76,14 @@ compare-merge coco images weights *overrides:
 scene-split coco images out="splits/v1_candidate.csv" *flags:
     uv run --no-sync python -m vehicle_detection.data.scene_split --coco {{coco}} --images {{images}} --out {{out}} --cache data/processed/scene_embeddings.npz {{flags}}
 
+analyse run_dir *flags:
+    uv run --no-sync python -m vehicle_detection.evaluation.analyse --run-dir {{run_dir}} {{flags}}
+
+dedupe run_dir *flags:
+    uv run --no-sync python -m vehicle_detection.evaluation.dedupe --run-dir {{run_dir}} {{flags}}
+
+count images weights *overrides:
+    uv run --no-sync python -m vehicle_detection.counting.run images_dir={{images}} weights={{weights}} {{overrides}}
+
 train-faster-rcnn coco images *overrides:
     uv run --no-sync python -m vehicle_detection.training.faster_rcnn_train data.coco_path={{coco}} data.images_dir={{images}} {{overrides}}
