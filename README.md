@@ -57,15 +57,14 @@ The real TRANSSET COCO file stores `file_name` without extension and category id
 
 ```bash
 just normalise-coco data/raw/transset/TRANSSET_v2/label_coco/coco.json data/raw/transset/TRANSSET_v2/images
-just provisional-manifest data/processed/coco.json data/raw/transset/TRANSSET_v2/images
-just tiles data/processed/coco.json data/raw/transset/TRANSSET_v2/images manifest_path=splits/provisional.csv tiling.image_extension=.jpg
+just tiles data/processed/coco.json data/raw/transset/TRANSSET_v2/images manifest_path=splits/v1.csv tiling.image_extension=.jpg
 just yolo-export
 just train-tiles data/yolo/data.yaml weights=yolo26n.pt epochs=50 imgsz=512
 just predict data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/E3b/weights/best.pt mode=sliced split=val
 just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/E3b/weights/best.pt split=val
 ```
 
-`splits/provisional.csv` groups visually similar frames into sessions and splits by group. It is a smoke-test split, ignored by git, and must be replaced by the shared `splits/v1.csv` before any number goes into the report. `vehicle_detection.evaluation.metrics` computes COCO AP with the small, medium and large breakdown, precision, recall and F1 at IoU 0.5, and counting MAE and RMSE; `compare`, the bootstrap and the evaluation tools below (`just analyse`, `just dedupe`) all use it. It used to live in `vehicle_detection.experiments.metrics`, which still works as an alias.
+`splits/v1.csv` is the frozen scene-based split (21 scenes; 3,099 / 842 / 763 images for train / val / test), built with `just scene-split`, and it is the only split behind the numbers in the report. `splits/provisional.csv` is a smoke-test split and must not be used for reported results. `vehicle_detection.evaluation.metrics` computes COCO AP with the small, medium and large breakdown, precision, recall and F1 at IoU 0.5, and counting MAE and RMSE; `compare`, the bootstrap and the evaluation tools below (`just analyse`, `just dedupe`) all use it. It used to live in `vehicle_detection.experiments.metrics`, which still works as an alias.
 
 `just compare` evaluates `full`, `sliced` and `adaptive` variants of the same weights on one split and writes `comparison.csv` and `comparison.md` with detection metrics, counting error, seconds per image and peak memory. Predictions are kept down to a confidence of 0.01 (`configs/postprocess/eval.yaml`) so that AP is computed on the full precision-recall curve, and the counting threshold grid must stay above that floor. The counting threshold is tuned on the split it is given, so tune on `val` and pass `threshold=<value>` for `test`; tuning on `test` is refused. Every run writes `run.json` or `provenance.json` with the full resolved config and the manifest hash, and reports built on a `provisional*` manifest are marked as such. Variants can override weights, mode and tiling in `configs/compare.yaml`, which is how E3b weights are compared with the baseline.
 
@@ -173,6 +172,16 @@ pixel-coordinate `xyxy` boxes and labels starting at 1. Calling `model.eval()`
 uses the last configured size (800), subject to the same long-edge cap.
 Pass an integer `min_size` for single-scale training. Direct setup calls retain
 the original 800/1333 defaults; multiscale settings are enabled by the config.
+
+## Scene based split
+
+TRANSSET frames are shuffled crops of a few dozen hovering videos, some of them rotated, so neither file order nor a per image split is safe. `vehicle_detection.data.scene_split` embeds every image with DINOv2 (also at 11 rotations, so rotated copies stay with their source), groups images into scenes with Louvain on a rotation invariant k nearest neighbour graph, labels two locations by clustering the scenes, and assigns whole scenes to train, val and test with a seeded annealing search that balances images, locations and class counts.
+
+```bash
+just scene-split data/processed/coco.json data/raw/transset/TRANSSET_v2/images splits/v1_candidate.csv --neighbors 12 --resolution 1.0 --max-group-share 0.1 --seed 7
+```
+
+It writes `splits/v1_candidate.csv` and `splits/v1_candidate.report.json`. The report lists group sizes, location and class shares per split and the share of near duplicate image pairs that end up in different splits at similarity 0.85, 0.9, 0.95 and 0.97, next to the 46.5 percent a random 70/15/15 split would give. A candidate is only a proposal: check the scene mosaics by eye before freezing it as `splits/v1.csv`.
 
 ## Workflow
 
