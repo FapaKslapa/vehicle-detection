@@ -1,0 +1,10 @@
+defaults:
+  - compare
+  - _self_
+
+out_dir: runs/final_test_e0
+weights: data/weights/E0-yolo26n-640.pt
+
+variants:
+  - {name: E0-full-640, mode: full, weights: data/weights/E0-yolo26n-640.pt, threshold: 0.4}
+  - {name: E3a-sliced-512, mode: sliced, input_size: 512, weights: data/weights/E0-yolo26n-640.pt, threshold: 0.5}
