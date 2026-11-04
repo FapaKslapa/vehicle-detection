@@ -1,6 +1,6 @@
 [project]
 name = "vehicle-detection"
-version = "0.2.1"
+version = "0.3.0"
 description = "Vehicle detection and traffic counting from drone-captured aerial images (TRANSSET)."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
