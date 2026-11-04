@@ -1,0 +1,10 @@
+defaults:
+  - compare
+  - _self_
+
+out_dir: runs/val_e0
+
+variants:
+  - {name: E0-full-640, mode: full}
+  - {name: E3a-sliced-512, mode: sliced, input_size: 512}
+  - {name: E3a-sliced-640, mode: sliced, input_size: 640}

@@ -1,0 +1,9 @@
+defaults:
+  - compare
+  - _self_
+
+kind: torchvision
+out_dir: runs/val_frcnn_e3a_320
+
+variants:
+  - {name: E3a-sliced-320, mode: sliced, input_size: 320}
