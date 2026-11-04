@@ -68,6 +68,20 @@ just compare data/processed/coco.json data/raw/transset/TRANSSET_v2/images runs/
 
 `just compare` evaluates `full`, `sliced` and `adaptive` variants of the same weights on one split and writes `comparison.csv` and `comparison.md` with detection metrics, counting error, seconds per image and peak memory. Predictions are kept down to a confidence of 0.01 (`configs/postprocess/eval.yaml`) so that AP is computed on the full precision-recall curve, and the counting threshold grid must stay above that floor. The counting threshold is tuned on the split it is given, so tune on `val` and pass `threshold=<value>` for `test`; tuning on `test` is refused. Every run writes `run.json` or `provenance.json` with the full resolved config and the manifest hash, and reports built on a `provisional*` manifest are marked as such. Variants can override weights, mode and tiling in `configs/compare.yaml`, which is how E3b weights are compared with the baseline.
 
+### Experiments and weights
+
+| Id | What | Weights | Config |
+|----|------|---------|--------|
+| E0 | baseline, whole image at 640 | `data/weights/E0-yolo26n-640.pt` | `configs/compare_e0.yaml` |
+| E1 | control, whole image at 1024 (also E4) | `data/weights/E1-control-yolo26n-1024.pt` | `configs/compare_e1.yaml` |
+| E1-MuSGD | control for the optimizer: E1 retrained with MuSGD | `data/weights/E1-musgd-yolo26n-1024.pt` | `configs/compare_final_musgd.yaml` |
+| E3a | sliced inference on the E0 weights, no retraining | E0 weights | `configs/compare_e0.yaml` (YOLO), `configs/compare_frcnn_e3a.yaml` (Faster R-CNN) |
+| E3b | trained on 512 px tiles with 20% overlap | `data/weights/E3b-yolo26n-512.pt` | `configs/compare.yaml` (variants), final: `configs/compare_final.yaml` |
+
+Weights are versioned with DVC: `uv run --no-sync dvc pull data/weights.dvc` (never a plain `dvc pull`; `just data-pull` only fetches the raw and processed data). The test split is used once per model: `configs/compare_final.yaml` and `configs/compare_final_e0.yaml` run it with the threshold fixed on val, with `configs/compare_final_musgd.yaml`, from `notebooks/kaggle_test_eval.ipynb`, `notebooks/kaggle_test_eval_e0.ipynb` and `notebooks/kaggle_test_eval_musgd.ipynb`.
+
+Ultralytics `optimizer=auto` picks AdamW below 10,000 iterations and MuSGD above, so E0 and E1 (about 2,450 iterations) and E3b (about 21,850) were trained with different optimizers. To isolate the effect, `just train-tiles` and `scripts/train_remote.sh` accept `optimizer`, `lr0`, `momentum` and `warmup_bias_lr` overrides (`OPTIMIZER`, `LR0`, `MOMENTUM`, `WARMUP_BIAS_LR` for the script), and `notebooks/kaggle_train.ipynb` is set up to retrain E1 with MuSGD (`E1-musgd-yolo26n-1024`). The result: with MuSGD the test AP of E1 drops from 0.425 to 0.399, still above every E3b variant, so the optimizer does not explain the gap between E1 and E3b. To reproduce E3b or E1, change the parameters in the first cell of the training notebook.
+
 ## Evaluation, counting and error analysis
 
 `just analyse <run-dir>` takes the output folder of `just compare` and explains the numbers in
