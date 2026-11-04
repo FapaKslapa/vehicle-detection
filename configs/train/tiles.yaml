@@ -14,6 +14,10 @@ fraction: 1.0
 project: runs
 device: null
 resume: null
+optimizer: null
+lr0: null
+momentum: null
+warmup_bias_lr: null
 
 hydra:
   output_subdir: null

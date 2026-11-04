@@ -29,6 +29,10 @@ class TileTrainConfig(BaseModel):
     project: Path = Path("runs")
     device: str | None = None
     resume: Path | None = None
+    optimizer: str | None = None
+    lr0: float | None = None
+    momentum: float | None = None
+    warmup_bias_lr: float | None = None
 
     @field_validator("device", mode="before")
     @classmethod
@@ -85,6 +89,11 @@ def train(
         model = trainer_factory(str(config.resume))
         model.train(resume=True, device=target)
         return Path(model.trainer.save_dir) / "weights" / "best.pt"
+    overrides = {
+        key: getattr(config, key)
+        for key in ("optimizer", "lr0", "momentum", "warmup_bias_lr")
+        if getattr(config, key) is not None
+    }
     model = trainer_factory(config.weights)
     model.train(
         data=str(config.data),
@@ -98,6 +107,7 @@ def train(
         project=str(config.project.resolve()),
         name=config.name,
         exist_ok=False,
+        **overrides,
     )
     return Path(model.trainer.save_dir) / "weights" / "best.pt"
 

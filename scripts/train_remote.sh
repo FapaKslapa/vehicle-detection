@@ -15,6 +15,10 @@ yolo_dir="${YOLO_DIR:-data/yolo}"
 seed="${SEED:-0}"
 device="${DEVICE:-}"
 resume="${RESUME:-}"
+optimizer="${OPTIMIZER:-}"
+lr0="${LR0:-}"
+momentum="${MOMENTUM:-}"
+warmup_bias_lr="${WARMUP_BIAS_LR:-}"
 extra=()
 if [ -n "${device}" ]; then
     extra+=("device=${device}")
@@ -23,6 +27,10 @@ if [ -n "${resume}" ] && [ -f "${resume}" ]; then
     extra+=("resume=${resume}")
 elif [ -n "${resume}" ]; then
     echo "RESUME ignorato, il file non esiste: ${resume}" >&2
+fi
+
+if [ -n "${optimizer}" ]; then
+    extra+=("optimizer=${optimizer}" "lr0=${lr0}" "momentum=${momentum}" "warmup_bias_lr=${warmup_bias_lr}")
 fi
 
 for tool in uv just; do

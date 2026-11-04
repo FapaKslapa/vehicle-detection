@@ -234,3 +234,28 @@ def test_default_tracking_hook_starts_the_run_with_the_configured_project(monkey
     assert calls[0]["name"] == "E3b-test"
     assert calls[0]["mode"] == "offline"
     assert calls[0]["config"]["epochs"] == 50
+
+
+def test_optimizer_overrides_reach_the_trainer(data_yaml):
+    FakeModel.instances.clear()
+    train(
+        make_config(data_yaml, optimizer="MuSGD", lr0=0.01, momentum=0.9, warmup_bias_lr=0.0),
+        trainer_factory=FakeModel,
+        device="cpu",
+        enable_tracking=noop_tracking,
+    )
+    kwargs = FakeModel.instances[0].train_kwargs
+    assert (kwargs["optimizer"], kwargs["lr0"], kwargs["momentum"]) == ("MuSGD", 0.01, 0.9)
+    assert kwargs["warmup_bias_lr"] == 0.0
+
+
+def test_optimizer_is_not_set_by_default(data_yaml):
+    FakeModel.instances.clear()
+    train(
+        make_config(data_yaml),
+        trainer_factory=FakeModel,
+        device="cpu",
+        enable_tracking=noop_tracking,
+    )
+    kwargs = FakeModel.instances[0].train_kwargs
+    assert "optimizer" not in kwargs and "lr0" not in kwargs
