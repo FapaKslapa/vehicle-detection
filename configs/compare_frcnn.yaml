@@ -1,0 +1,13 @@
+# Faster R-CNN against the E1 control on whole images at 1024 px. All three variants run
+# together because the paired bootstrap needs them in one folder. Thresholds are tuned on val.
+defaults:
+  - compare
+  - _self_
+
+weights: data/weights/E1-control-yolo26n-1024.pt
+out_dir: runs/val_frcnn
+
+variants:
+  - {name: E1-full-1024, mode: full}
+  - {name: frcnn-full-1024, mode: full, kind: torchvision, input_size: 1024, weights: data/weights/frcnn-full-1024.pt}
+  - {name: frcnn-multiscale-1024, mode: full, kind: torchvision, input_size: 1024, weights: data/weights/frcnn-multiscale-1024.pt}

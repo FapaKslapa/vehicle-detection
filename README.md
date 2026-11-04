@@ -223,11 +223,14 @@ the COCO categories are authoritative rather than the descriptive classes list.
 
 Each epoch trains with SGD and evaluates full-image COCO AP on val only. The test
 split is never used. Outputs are best.pt (highest validation AP in this run), last.pt,
-checkpoint.pt (model and optimizer for resume), metrics.jsonl, and run.json
-(resolved settings, categories, and manifest hash). best.pt and last.pt are plain
+checkpoint.pt (model and optimizer for resume), metrics.jsonl, train.log (progress,
+timing and peak GPU memory, readable during training), and run.json (resolved settings,
+categories, and manifest hash). Set training.lr_steps to divide the learning rate by ten
+at those zero-based epochs; the default empty list keeps it constant. best.pt and last.pt are plain
 state dictionaries compatible with the existing torchvision inference adapter.
-That adapter uses its default 800/1333 resize settings; custom model resizing must
-also be configured when constructing a model for inference. Existing output
+That adapter resizes to 800/1333 unless input_size is set, so pass the training size
+(for example kind=torchvision input_size=1024). `configs/compare_frcnn.yaml` compares
+both Faster R-CNN runs with the E1 control at 1024 pixels on val. Existing output
 directories are refused to protect previous runs.
 
 For an offline CPU smoke run, use model.weights=null training.device=cpu

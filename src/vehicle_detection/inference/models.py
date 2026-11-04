@@ -69,10 +69,13 @@ def build_detection_model(
     if not weights.is_file():
         raise FileNotFoundError(f"pesi non trovati: {weights}")
     if kind == "torchvision":
+        sizes = {"min_size": input_size, "max_size": max(input_size, 1333)} if input_size else {}
         module = MODEL_NAME_TO_CONSTRUCTOR[torchvision_name](
-            num_classes=len(space.names) + 1, weights=None, weights_backbone=None
+            num_classes=len(space.names) + 1, weights=None, weights_backbone=None, **sizes
         )
         module.load_state_dict(torch.load(weights, map_location=device, weights_only=True))
+        # torchvision drops boxes below its own 0.05 default before the adapter sees them.
+        module.roi_heads.score_thresh = confidence_threshold
         return torchvision_detection_model(module, space, confidence_threshold, device)
     detection_model = AutoDetectionModel.from_pretrained(
         model_type=kind,
