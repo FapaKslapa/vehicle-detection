@@ -1,0 +1,10 @@
+defaults:
+  - compare
+  - _self_
+
+out_dir: runs/final_test_musgd
+weights: data/weights/E1-musgd-yolo26n-1024.pt
+
+variants:
+  - {name: E1-full-1024, mode: full, weights: data/weights/E1-control-yolo26n-1024.pt, threshold: 0.45}
+  - {name: E1-musgd-full-1024, mode: full, weights: data/weights/E1-musgd-yolo26n-1024.pt, threshold: 0.4}
