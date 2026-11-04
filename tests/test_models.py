@@ -154,6 +154,31 @@ def test_torchvision_weights_roundtrip_through_build_detection_model(tmp_path):
     assert model.num_categories == 3
 
 
+@pytest.mark.parametrize(
+    ("input_size", "min_size", "max_size"), [(None, (800,), 1333), (1024, (1024,), 1333)]
+)
+def test_torchvision_adapter_applies_input_size_and_confidence_floor(
+    tmp_path, input_size, min_size, max_size
+):
+    module = torchvision.models.detection.fasterrcnn_mobilenet_v3_large_fpn(
+        weights=None, weights_backbone=None, num_classes=4
+    )
+    weights = tmp_path / "frcnn.pt"
+    torch.save(module.state_dict(), weights)
+    model = build_detection_model(
+        "torchvision",
+        weights,
+        label_space(CATEGORIES, first_label=1),
+        0.01,
+        "cpu",
+        torchvision_name="fasterrcnn_mobilenet_v3_large_fpn",
+        input_size=input_size,
+    )
+    assert tuple(model.model.transform.min_size) == min_size
+    assert model.model.transform.max_size == max_size
+    assert model.model.roi_heads.score_thresh == 0.01
+
+
 YOLO_WEIGHTS = Path(os.environ.get("VD_TEST_YOLO_WEIGHTS", ""))
 
 
