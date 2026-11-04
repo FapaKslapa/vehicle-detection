@@ -1,0 +1,14 @@
+# E1 and all Faster R-CNN runs on whole images, each at its training size. Thresholds are
+# tuned on val; the test run uses compare_frcnn_test.yaml with these thresholds fixed.
+defaults:
+  - compare
+  - _self_
+
+weights: data/weights/E1-control-yolo26n-1024.pt
+out_dir: runs/val_frcnn_all
+
+variants:
+  - {name: E1-full-1024, mode: full}
+  - {name: frcnn-full-640, mode: full, kind: torchvision, input_size: 640, weights: data/weights/frcnn-full-640.pt}
+  - {name: frcnn-full-1024, mode: full, kind: torchvision, input_size: 1024, weights: data/weights/frcnn-full-1024.pt}
+  - {name: frcnn-multiscale-1024, mode: full, kind: torchvision, input_size: 1024, weights: data/weights/frcnn-multiscale-1024.pt}
