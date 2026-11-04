@@ -1,0 +1,16 @@
+# Test split, run once. Thresholds are fixed from runs/val_frcnn_all/comparison.csv;
+# class-agnostic NMS is added afterwards by `just dedupe ... --iou 0.5 --thresholds-from
+# runs/val_frcnn_all_agnostic/comparison.csv`.
+defaults:
+  - compare
+  - _self_
+
+split: test
+weights: data/weights/E1-control-yolo26n-1024.pt
+out_dir: runs/test_frcnn
+
+variants:
+  - {name: E1-full-1024, mode: full, threshold: 0.45}
+  - {name: frcnn-full-640, mode: full, kind: torchvision, input_size: 640, weights: data/weights/frcnn-full-640.pt, threshold: 0.5}
+  - {name: frcnn-full-1024, mode: full, kind: torchvision, input_size: 1024, weights: data/weights/frcnn-full-1024.pt, threshold: 0.5}
+  - {name: frcnn-multiscale-1024, mode: full, kind: torchvision, input_size: 1024, weights: data/weights/frcnn-multiscale-1024.pt, threshold: 0.65}
